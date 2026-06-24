@@ -14,7 +14,8 @@ export type Theme = 'dark' | 'light'
 
 // Farm pivot — blocking in-game dialogs. While one is open, the farm
 // simulation pauses (mirrors how the café engine pauses on event decisions).
-export type FarmDialog = 'menu' | 'cost-flow' | null
+// 'objectives' is the level-intro shown before the match starts.
+export type FarmDialog = 'menu' | 'cost-flow' | 'objectives' | null
 
 const THEME_KEY = 'costflow_theme'
 const ONBOARDING_KEY = 'costflow_onboarding_done'

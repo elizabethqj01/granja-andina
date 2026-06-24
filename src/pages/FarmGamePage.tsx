@@ -5,6 +5,7 @@ import { LevelHUD } from '@/features/level/components/LevelHUD'
 import { LevelCompleteModal } from '@/features/level/components/LevelCompleteModal'
 import { InGameMenu } from '@/features/level/components/InGameMenu'
 import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
+import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
 
@@ -17,9 +18,10 @@ export function FarmGamePage() {
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
 
   useEffect(() => {
-    setFarmDialog(null)
+    // Start fresh and pause on the objectives intro until the player begins.
     farmEngine.reset()
     farmEngine.start()
+    setFarmDialog('objectives')
     return () => {
       farmEngine.stop()
       setFarmDialog(null)
@@ -27,7 +29,9 @@ export function FarmGamePage() {
   }, [setFarmDialog])
 
   function handleRestart() {
+    // Re-init AND re-start the clock, then drop straight back into play.
     farmEngine.reset()
+    farmEngine.start()
     setFarmDialog(null)
   }
 
@@ -40,6 +44,7 @@ export function FarmGamePage() {
     <div className="relative h-screen w-screen overflow-hidden bg-surface-primary">
       <FarmGameCanvas />
       <LevelHUD />
+      <LevelIntroModal />
       <CostFlowDialog />
       <InGameMenu
         onResume={() => setFarmDialog(null)}

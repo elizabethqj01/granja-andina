@@ -2,6 +2,7 @@ import Phaser from 'phaser'
 import { IsoGrid } from '../objects/IsoGrid'
 import { FarmEntity } from '../objects/FarmEntity'
 import { useFarmStore, FARM_GRID } from '@/store/farmStore'
+import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
 const COLORS = {
   bg: 0x88c057,
@@ -31,6 +32,8 @@ export class FarmScene extends Phaser.Scene {
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
   private floor!: Phaser.GameObjects.Graphics
+  private chickenHungerBar!: Phaser.GameObjects.Graphics
+  private chickenHungerAlert!: Phaser.GameObjects.Text
 
   private eggSprites = new Map<string, FarmEntity>()
   private farmerHome = new Phaser.Math.Vector2()
@@ -60,6 +63,21 @@ export class FarmScene extends Phaser.Scene {
       color: COLORS.chicken,
       size: 26,
     })
+
+    // Hunger indicator: a bar above the chicken + a blinking alert when starving.
+    this.chickenHungerBar = this.add.graphics().setDepth(20)
+    this.chickenHungerAlert = this.add
+      .text(chickenPos.x, chickenPos.y, '🌽 ¡Hambre!', {
+        fontSize: '11px',
+        color: '#ffffff',
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+        backgroundColor: '#c62828',
+        padding: { x: 4, y: 2 },
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(21)
+      .setVisible(false)
 
     this.farmerHome.set(width / 2, height * 0.62)
     this.farmer = new FarmEntity(this, this.farmerHome.x, this.farmerHome.y, {
@@ -106,8 +124,44 @@ export class FarmScene extends Phaser.Scene {
     this.cornWarehouse.setLabel(`Maíz: ${farm.cornStock}`)
     this.eggWarehouse.setLabel(`Huevos: ${farm.warehouseEggs}`)
 
+    this.drawChickenHunger(farm.cornStock)
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
+  }
+
+  /**
+   * Show how much corn the chicken has left to eat. The bar drains as corn is
+   * consumed; at zero it turns red and a blinking "hungry" alert appears,
+   * signalling the player to refill corn.
+   */
+  private drawChickenHunger(cornStock: number): void {
+    const full = FARM_LEVEL1.cornPerRecharge
+    const frac = Phaser.Math.Clamp(cornStock / full, 0, 1)
+    const w = 34
+    const h = 6
+    const cx = this.chicken.x
+    const top = this.chicken.y - 36
+
+    this.chickenHungerBar.clear()
+    this.chickenHungerBar.fillStyle(0x000000, 0.4)
+    this.chickenHungerBar.fillRoundedRect(cx - w / 2, top, w, h, 2)
+
+    let color = 0x43a047 // green = well fed
+    if (cornStock === 0)
+      color = 0xe53935 // red = starving
+    else if (frac <= 0.34) color = 0xfb8c00 // orange = low
+    if (frac > 0) {
+      this.chickenHungerBar.fillStyle(color, 1)
+      this.chickenHungerBar.fillRoundedRect(cx - w / 2, top, w * frac, h, 2)
+    }
+    this.chickenHungerBar.lineStyle(1, 0x000000, 0.5)
+    this.chickenHungerBar.strokeRoundedRect(cx - w / 2, top, w, h, 2)
+
+    const hungry = cornStock === 0
+    this.chickenHungerAlert.setPosition(cx, top - 4).setVisible(hungry)
+    if (hungry) {
+      this.chickenHungerAlert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
+    }
   }
 
   // ── Rendering helpers ─────────────────────────────────────────────────────
