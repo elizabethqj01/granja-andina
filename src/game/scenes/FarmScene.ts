@@ -5,6 +5,21 @@ import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
+// ─── Visual sizes ──────────────────────────────────────────────────────────────
+// Entities on the field are rendered LARGER than their logical tile (64×32).
+// This matches Farm Frenzy's style: 1-tile logic, oversized sprite.
+const SZ = {
+  chicken: 52, // ~0.8× tile diagonal — dominates the tile visually
+  egg: 34, // half the chicken — clearly visible
+  corn: 30, // slightly smaller than egg so stacking reads cleanly
+  farmer: 48,
+  truck: 70,
+  cornWarehouse: 66,
+  chickenShop: 58,
+  eggWarehouse: 66,
+  cart: 58,
+} as const
+
 const COLORS = {
   bg: 0x88c057,
   tileA: 0x7cb342,
@@ -34,7 +49,6 @@ export class FarmScene extends Phaser.Scene {
   private chickenShop!: FarmEntity
   private floor!: Phaser.GameObjects.Graphics
 
-  // Multiple chickens — keyed by chicken.id
   private chickenSprites = new Map<string, FarmEntity>()
   private chickenHungerBars = new Map<string, Phaser.GameObjects.Graphics>()
   private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
@@ -64,70 +78,70 @@ export class FarmScene extends Phaser.Scene {
     this.drawFloor()
     this.createTileZones()
 
-    // Farmer
-    this.farmerHome.set(width / 2, height * 0.78)
+    // Farmer — parked at the bottom-center when idle
+    this.farmerHome.set(width / 2, height * 0.82)
     this.farmer = new FarmEntity(this, this.farmerHome.x, this.farmerHome.y, {
       icon: '👨‍🌾',
       label: 'Granjero',
       color: COLORS.farmer,
-      size: 24,
+      size: SZ.farmer,
     })
     this.farmer.setDepth(50)
 
-    // Truck — starts off-screen to the right
-    this.truck = new FarmEntity(this, width + 100, height * 0.85, {
+    // Truck — off-screen right until a sale is triggered
+    this.truck = new FarmEntity(this, width + 150, height * 0.85, {
       icon: '🚚',
       color: COLORS.truck,
-      size: 44,
+      size: SZ.truck,
     })
     this.truck.setDepth(60)
 
-    // Corn warehouse (top-center)
-    this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.08, {
+    // Corn warehouse — top-center, clickable
+    this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.09, {
       icon: '🌽',
-      label: `Maíz (+${FARM_LEVEL1.cornPerRecharge}) $${CORN_BATCH_PRICE}`,
+      label: `Comprar maíz ×${FARM_LEVEL1.cornPerRecharge}  $${CORN_BATCH_PRICE}`,
       color: COLORS.corn,
-      size: 38,
+      size: SZ.cornWarehouse,
       interactive: true,
     }).onClick(() => useFarmStore.getState().rechargeCorn())
 
     // Corn stock counter — to the right of the warehouse
     this.cornStockText = this.add
-      .text(width / 2 + 54, height * 0.08, '🌽 ×0', {
-        fontSize: '13px',
+      .text(width / 2 + 74, height * 0.09, '🌽 ×0', {
+        fontSize: '16px',
         color: '#fdd835',
         fontFamily: 'monospace',
         fontStyle: 'bold',
         stroke: '#000000',
-        strokeThickness: 3,
+        strokeThickness: 4,
       })
       .setOrigin(0, 0.5)
       .setDepth(30)
 
-    // Chicken shop (top-left area)
-    this.chickenShop = new FarmEntity(this, width * 0.12, height * 0.08, {
+    // Chicken shop — top-left
+    this.chickenShop = new FarmEntity(this, width * 0.11, height * 0.09, {
       icon: '🐔',
-      label: `Gallina $${FARM_LEVEL1.chickenBuyPrice}`,
+      label: `Comprar gallina  $${FARM_LEVEL1.chickenBuyPrice}`,
       color: COLORS.chickenShop,
-      size: 38,
+      size: SZ.chickenShop,
       interactive: true,
     }).onClick(() => useFarmStore.getState().buyChicken())
 
-    // Egg warehouse (bottom-right) — click to open sell modal
-    this.eggWarehouse = new FarmEntity(this, width * 0.84, height * 0.88, {
+    // Egg warehouse — bottom-right, opens sell modal
+    this.eggWarehouse = new FarmEntity(this, width * 0.86, height * 0.88, {
       icon: '🥚',
       label: 'Almacén',
       color: COLORS.eggWarehouse,
-      size: 40,
+      size: SZ.eggWarehouse,
       interactive: true,
     }).onClick(() => this.openSellModal())
 
-    // Cart (bottom-left) — also opens sell modal
-    this.cart = new FarmEntity(this, width * 0.14, height * 0.88, {
+    // Cart — bottom-left, also opens sell modal
+    this.cart = new FarmEntity(this, width * 0.13, height * 0.88, {
       icon: '🛒',
       label: 'Vender',
       color: COLORS.cart,
-      size: 38,
+      size: SZ.cart,
       interactive: true,
     }).onClick(() => this.openSellModal())
 
@@ -157,23 +171,22 @@ export class FarmScene extends Phaser.Scene {
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
 
-    // Corn warehouse
+    // Corn stock counter
     const cornStock = farm.cornStock
     this.cornStockText.setText(`🌽 ×${cornStock}`)
     this.cornStockText.setColor(cornStock > 0 ? '#fdd835' : '#ffffff66')
 
-    // Egg warehouse label + dim when full
+    // Egg warehouse — live count + LLENO warning
     const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
     this.eggWarehouse.setLabel(
-      `🥚 ${farm.warehouseEggs}/${FARM_LEVEL1.maxWarehouseEggs}${full ? ' ¡LLENO!' : ''}`
+      `🥚 ${farm.warehouseEggs}/${FARM_LEVEL1.maxWarehouseEggs}${full ? '  ¡LLENO!' : ''}`
     )
     this.eggWarehouse.setAlpha(full ? 0.85 : 1)
 
-    // Chicken shop — dim when max reached
-    const atMax = farm.chickens.length >= FARM_LEVEL1.maxChickens
-    this.chickenShop.setAlpha(atMax ? 0.45 : 1)
+    // Chicken shop — dim when at max
+    this.chickenShop.setAlpha(farm.chickens.length >= FARM_LEVEL1.maxChickens ? 0.4 : 1)
 
-    // Truck animation trigger
+    // Truck animation
     if (farm.saleState === 'in-transit' && !this.truckAnimating) {
       this.startTruckAnimation()
     }
@@ -184,7 +197,6 @@ export class FarmScene extends Phaser.Scene {
   private reconcileChickens(chickens: Chicken[], placedCornCount: number): void {
     const liveIds = new Set(chickens.map((c) => c.id))
 
-    // Remove sold / missing chickens
     for (const [id] of this.chickenSprites) {
       if (!liveIds.has(id)) {
         this.chickenSprites.get(id)?.destroy()
@@ -197,27 +209,27 @@ export class FarmScene extends Phaser.Scene {
     }
 
     for (const chicken of chickens) {
-      // Create sprite + hunger objects if new
       if (!this.chickenSprites.has(chicken.id)) {
         const pos = this.iso.toScreen(chicken.col, chicken.row)
         const sprite = new FarmEntity(this, pos.x, pos.y, {
           icon: '🐔',
           color: COLORS.chicken,
-          size: 26,
+          size: SZ.chicken,
         })
+        sprite.setDepth(15)
         this.chickenSprites.set(chicken.id, sprite)
 
         const bar = this.add.graphics().setDepth(20)
         this.chickenHungerBars.set(chicken.id, bar)
 
         const alert = this.add
-          .text(pos.x, pos.y, '🌽 ¡Hambre!', {
-            fontSize: '11px',
+          .text(pos.x, pos.y, '🌽 ¡Sin maíz!', {
+            fontSize: '13px',
             color: '#ffffff',
             fontFamily: 'monospace',
             fontStyle: 'bold',
             backgroundColor: '#c62828',
-            padding: { x: 4, y: 2 },
+            padding: { x: 5, y: 3 },
           })
           .setOrigin(0.5, 1)
           .setDepth(21)
@@ -225,13 +237,12 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerAlerts.set(chicken.id, alert)
       }
 
-      // Lerp sprite toward logical tile
+      // Lerp sprite toward target tile
       const sprite = this.chickenSprites.get(chicken.id)!
       const target = this.iso.toScreen(chicken.col, chicken.row)
       sprite.x += (target.x - sprite.x) * 0.12
       sprite.y += (target.y - sprite.y) * 0.12
 
-      // Update hunger bar for this chicken
       this.drawChickenHunger(
         this.chickenHungerBars.get(chicken.id)!,
         this.chickenHungerAlerts.get(chicken.id)!,
@@ -243,10 +254,10 @@ export class FarmScene extends Phaser.Scene {
   }
 
   /**
-   * Activity bar above each chicken:
-   * - laying   → green fill (progress toward egg)
-   * - seeking  → orange (heading to corn)
-   * - wandering + corn on field → yellow (about to seek)
+   * Activity bar above each chicken.
+   * - laying   → green fill (progress to egg)
+   * - seeking  → orange (walking to corn)
+   * - wandering + corn available → yellow
    * - wandering + no corn → red empty + blinking alert
    */
   private drawChickenHunger(
@@ -270,13 +281,14 @@ export class FarmScene extends Phaser.Scene {
       barColor = placedCornCount > 0 ? 0xfdd835 : 0xe53935
     }
 
-    const w = 36
-    const h = 6
+    const w = 54
+    const h = 7
     const cx = sprite.x
-    const top = sprite.y - 38
+    // The chicken box top is at sprite.y - SZ.chicken*0.85
+    const top = sprite.y - SZ.chicken * 0.85 - 12
 
     bar.clear()
-    bar.fillStyle(0x000000, 0.4)
+    bar.fillStyle(0x000000, 0.45)
     bar.fillRoundedRect(cx - w / 2, top, w, h, 2)
     if (frac > 0) {
       bar.fillStyle(barColor, 1)
@@ -287,9 +299,7 @@ export class FarmScene extends Phaser.Scene {
 
     const hungry = chicken.state === 'wandering' && placedCornCount === 0
     alert.setPosition(cx, top - 4).setVisible(hungry)
-    if (hungry) {
-      alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
-    }
+    if (hungry) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
   }
 
   private destroyChickenVisuals(): void {
@@ -308,9 +318,9 @@ export class FarmScene extends Phaser.Scene {
     const { width, height } = this.scale
     const y = height * 0.85
 
-    this.truck.setPosition(width + 100, y).setScale(1, 1)
+    this.truck.setPosition(width + 150, y).setScale(1, 1)
 
-    // Phase 1: enter from right → center (truck faces left)
+    // Phase 1: enter from right (faces left)
     this.tweens.add({
       targets: this.truck,
       x: width * 0.5,
@@ -318,15 +328,15 @@ export class FarmScene extends Phaser.Scene {
       ease: 'Linear',
       onStart: () => this.truck.setScale(-1, 1),
       onComplete: () => {
-        // Phase 2: pause, then exit left (going to market)
+        // Phase 2: pause, then exit left (to market)
         this.time.delayedCall(350, () => {
           this.tweens.add({
             targets: this.truck,
-            x: -100,
+            x: -150,
             duration: 700,
             ease: 'Linear',
             onComplete: () => {
-              // Phase 3: return from left → center (facing right, carrying cash)
+              // Phase 3: return from left (faces right, carrying cash)
               this.time.delayedCall(500, () => {
                 this.truck.setScale(1, 1)
                 this.tweens.add({
@@ -335,11 +345,11 @@ export class FarmScene extends Phaser.Scene {
                   duration: 900,
                   ease: 'Linear',
                   onComplete: () => {
-                    // Phase 4: pause, exit right (going home)
+                    // Phase 4: pause, exit right
                     this.time.delayedCall(350, () => {
                       this.tweens.add({
                         targets: this.truck,
-                        x: width + 100,
+                        x: width + 150,
                         duration: 700,
                         ease: 'Linear',
                         onComplete: () => {
@@ -407,7 +417,7 @@ export class FarmScene extends Phaser.Scene {
         const sprite = new FarmEntity(this, pos.x, pos.y, {
           icon: '🌽',
           color: COLORS.corn,
-          size: 20,
+          size: SZ.corn,
         })
         sprite.setDepth(8)
         this.placedCornSprites.set(corn.id, sprite)
@@ -432,14 +442,14 @@ export class FarmScene extends Phaser.Scene {
         sprite = new FarmEntity(this, pos.x, pos.y, {
           icon: '🥚',
           color: COLORS.egg,
-          size: 16,
+          size: SZ.egg,
           interactive: true,
         }).onClick(() => useFarmStore.getState().requestCollect(egg.id))
         sprite.setDepth(10)
         this.eggSprites.set(egg.id, sprite)
       }
 
-      // Urgency color based on age
+      // Urgency color + alpha pulse near spoil
       const spoilRatio = egg.ageTimerSec / FARM_LEVEL1.eggSpoilTimeSec
       let eggColor: number
       let eggAlpha = 1
@@ -486,18 +496,17 @@ export class FarmScene extends Phaser.Scene {
     this.tileZones = []
     this.createTileZones()
 
-    this.cornWarehouse.setPosition(width / 2, height * 0.08)
-    this.cornStockText.setPosition(width / 2 + 54, height * 0.08)
-    this.chickenShop.setPosition(width * 0.12, height * 0.08)
-    this.eggWarehouse.setPosition(width * 0.84, height * 0.88)
-    this.cart.setPosition(width * 0.14, height * 0.88)
-    this.farmerHome.set(width / 2, height * 0.78)
+    this.cornWarehouse.setPosition(width / 2, height * 0.09)
+    this.cornStockText.setPosition(width / 2 + 74, height * 0.09)
+    this.chickenShop.setPosition(width * 0.11, height * 0.09)
+    this.eggWarehouse.setPosition(width * 0.86, height * 0.88)
+    this.cart.setPosition(width * 0.13, height * 0.88)
+    this.farmerHome.set(width / 2, height * 0.82)
 
     if (!this.truckAnimating) {
-      this.truck.setPosition(width + 100, height * 0.85)
+      this.truck.setPosition(width + 150, height * 0.85)
     }
 
-    // Clear positioned sprites — reconcile recreates them at correct positions
     this.placedCornSprites.forEach((s) => s.destroy())
     this.placedCornSprites.clear()
     this.eggSprites.forEach((s) => s.destroy())

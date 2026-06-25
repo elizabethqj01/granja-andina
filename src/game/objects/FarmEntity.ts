@@ -4,7 +4,7 @@ export type EntityRenderMode = 'placeholder' | 'sprite'
 
 export interface FarmEntityConfig {
   label?: string
-  icon?: string // emoji rendered inside the box
+  icon?: string
   color: number
   size?: number
   spriteKey?: string
@@ -24,7 +24,7 @@ export class FarmEntity extends Phaser.GameObjects.Container {
     private cfg: FarmEntityConfig
   ) {
     super(scene, x, y)
-    const size = cfg.size ?? 28
+    const size = cfg.size ?? 32
 
     if (cfg.spriteKey && scene.textures.exists(cfg.spriteKey)) {
       this.mode = 'sprite'
@@ -34,30 +34,32 @@ export class FarmEntity extends Phaser.GameObjects.Container {
       this.mode = 'placeholder'
       this.box = scene.add
         .rectangle(0, 0, size, size, cfg.color)
-        .setStrokeStyle(2, 0x000000, 0.3)
+        .setStrokeStyle(2, 0x000000, 0.35)
         .setOrigin(0.5, 0.85)
       this.add(this.box)
     }
 
-    // Emoji icon centered inside the box (origin 0.5,0.85 → center ≈ y = -size*0.35)
+    // Emoji icon — centered inside the box.
+    // Box origin is (0.5, 0.85): top at -(size*0.85), bottom at +(size*0.15)
+    // Visual center ≈ -(size*0.85) + size/2 = -(size*0.35)
     if (cfg.icon) {
-      const iconSize = Math.max(12, Math.floor(size * 0.55))
+      const iconPx = Math.max(16, Math.floor(size * 0.65))
       this.add(
-        scene.add
-          .text(0, -(size * 0.35), cfg.icon, { fontSize: `${iconSize}px` })
-          .setOrigin(0.5, 0.5)
+        scene.add.text(0, -(size * 0.35), cfg.icon, { fontSize: `${iconPx}px` }).setOrigin(0.5, 0.5)
       )
     }
 
     if (cfg.label) {
+      // Place label just below the box bottom (box bottom is at +size*0.15)
+      const labelY = size * 0.15 + 3
       this.text = scene.add
-        .text(0, 6, cfg.label, {
-          fontSize: '10px',
+        .text(0, labelY, cfg.label, {
+          fontSize: '13px',
           color: '#ffffff',
           fontFamily: 'monospace',
           fontStyle: 'bold',
           stroke: '#000000',
-          strokeThickness: 3,
+          strokeThickness: 4,
         })
         .setOrigin(0.5, 0)
       this.add(this.text)
@@ -65,7 +67,7 @@ export class FarmEntity extends Phaser.GameObjects.Container {
 
     if (cfg.interactive) {
       const hit = scene.add
-        .zone(0, 0, size + 8, size + 8)
+        .zone(0, 0, size + 10, size + 10)
         .setOrigin(0.5, 0.85)
         .setInteractive({ useHandCursor: true })
       this.add(hit)
