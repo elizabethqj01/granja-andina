@@ -1,12 +1,29 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import { advanceFarm, computeStars, useFarmStore, type FarmState } from './farmStore'
+import {
+  advanceFarm,
+  computeStars,
+  useFarmStore,
+  type FarmState,
+  type ChickenState,
+} from './farmStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
+
+const defaultChicken = {
+  id: 'c1',
+  col: 4,
+  row: 3,
+  state: 'wandering' as ChickenState,
+  targetCornId: null,
+  layTimerSec: 0,
+  wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
+}
 
 function baseState(overrides: Partial<FarmState> = {}): FarmState {
   return {
     cash: 1_000,
     cornStock: 0,
-    chickens: [{ id: 'c1', col: 2, row: 2, layTimerSec: 0 }],
+    placedCorn: [],
+    chickens: [{ ...defaultChicken }],
     groundEggs: [],
     warehouseEggs: 0,
     eggsCollectedTotal: 0,
@@ -18,8 +35,11 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     cifAccrued: 0,
     revenue: 0,
     eggsSold: 0,
+    saleState: 'idle',
+    pendingSaleIncome: 0,
     levelComplete: false,
     stars: 0,
+    notification: null,
     ...overrides,
   }
 }
@@ -30,7 +50,7 @@ describe('computeStars', () => {
     expect(computeStars(60)).toBe(3)
   })
 
-  it('should_award2Stars_when_between60And120Seconds', () => {
+  it('should_award2Stars_when_between61And120Seconds', () => {
     expect(computeStars(61)).toBe(2)
     expect(computeStars(120)).toBe(2)
   })
@@ -52,23 +72,92 @@ describe('advanceFarm', () => {
     expect(next.modAccrued).toBe(0)
   })
 
-  it('should_notLayEgg_when_noCorn', () => {
-    let state = baseState({ cornStock: 0 })
-    for (let i = 0; i < FARM_LEVEL1.eggLayTimeSec + 2; i++) state = advanceFarm(state)
+  it('should_notLayEgg_when_noPlacedCorn', () => {
+    let state = baseState()
+    for (let i = 0; i < FARM_LEVEL1.eggLayTimeSec + 5; i++) state = advanceFarm(state)
     expect(state.groundEggs).toHaveLength(0)
   })
 
-  it('should_layEggAndConsumeCorn_when_layTimerElapsesWithCorn', () => {
-    let state = baseState({ cornStock: 2 })
-    for (let i = 0; i < FARM_LEVEL1.eggLayTimeSec; i++) state = advanceFarm(state)
-    expect(state.groundEggs).toHaveLength(1)
-    expect(state.cornStock).toBe(1)
-    expect(state.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
+  it('should_enterSeekingState_when_placedCornExists', () => {
+    const state = baseState({
+      placedCorn: [{ id: 'corn-1', col: 1, row: 1 }],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('seeking')
+    expect(next.chickens[0].targetCornId).toBe('corn-1')
+  })
+
+  it('should_eatCornAndEnterLayingState_when_seekingAndOnCornTile', () => {
+    const state = baseState({
+      chickens: [{ ...defaultChicken, col: 2, row: 2, state: 'seeking', targetCornId: 'corn-1' }],
+      placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('laying')
+    expect(next.placedCorn).toHaveLength(0)
+    expect(next.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
+  })
+
+  it('should_layEggAtChickenPosition_when_layTimerElapses', () => {
+    const state = baseState({
+      chickens: [
+        {
+          ...defaultChicken,
+          col: 3,
+          row: 5,
+          state: 'laying',
+          layTimerSec: FARM_LEVEL1.eggLayTimeSec - 1,
+        },
+      ],
+    })
+    const next = advanceFarm(state)
+    expect(next.groundEggs).toHaveLength(1)
+    expect(next.groundEggs[0].col).toBe(3)
+    expect(next.groundEggs[0].row).toBe(5)
+    expect(next.chickens[0].state).toBe('wandering')
+  })
+
+  it('should_removeEgg_when_ageExceedsSpoilTimer', () => {
+    const state = baseState({
+      groundEggs: [
+        {
+          id: 'e1',
+          col: 2,
+          row: 2,
+          collecting: false,
+          collectElapsedSec: 0,
+          ageTimerSec: FARM_LEVEL1.eggSpoilTimeSec,
+        },
+      ],
+    })
+    const next = advanceFarm(state)
+    expect(next.groundEggs).toHaveLength(0)
+  })
+
+  it('should_notSpoilEgg_when_collecting', () => {
+    const state = baseState({
+      groundEggs: [
+        {
+          id: 'e1',
+          col: 2,
+          row: 2,
+          collecting: true,
+          collectElapsedSec: 0,
+          ageTimerSec: FARM_LEVEL1.eggSpoilTimeSec + 10, // way over spoil limit
+        },
+      ],
+      farmer: { state: 'working', targetEggId: 'e1' },
+    })
+    const next = advanceFarm(state)
+    // Egg survives spoil filter because collecting === true; farmer hasn't finished yet (1 of 3 ticks)
+    expect(next.groundEggs).toHaveLength(1)
   })
 
   it('should_depositEgg_when_farmerFinishesCollecting', () => {
     let state = baseState({
-      groundEggs: [{ id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0 }],
+      groundEggs: [
+        { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
+      ],
       farmer: { state: 'working', targetEggId: 'e1' },
     })
     for (let i = 0; i < FARM_LEVEL1.farmerCollectTimeSec; i++) state = advanceFarm(state)
@@ -80,7 +169,9 @@ describe('advanceFarm', () => {
 
   it('should_accrueMod_when_farmerWorking', () => {
     const state = baseState({
-      groundEggs: [{ id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0 }],
+      groundEggs: [
+        { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
+      ],
       farmer: { state: 'working', targetEggId: 'e1' },
     })
     const next = advanceFarm(state)
@@ -97,6 +188,7 @@ describe('advanceFarm', () => {
           row: 2,
           collecting: true,
           collectElapsedSec: FARM_LEVEL1.farmerCollectTimeSec - 1,
+          ageTimerSec: 0,
         },
       ],
       farmer: { state: 'working', targetEggId: 'e1' },
@@ -112,6 +204,19 @@ describe('advanceFarm', () => {
     const next = advanceFarm(state)
     expect(next).toBe(state)
   })
+
+  it('should_capWarehouseEggs_when_atMaxCapacity', () => {
+    const state = baseState({
+      warehouseEggs: FARM_LEVEL1.maxWarehouseEggs,
+      groundEggs: [
+        { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
+      ],
+      farmer: { state: 'working', targetEggId: 'e1' },
+    })
+    let s = state
+    for (let i = 0; i < FARM_LEVEL1.farmerCollectTimeSec; i++) s = advanceFarm(s)
+    expect(s.warehouseEggs).toBe(FARM_LEVEL1.maxWarehouseEggs)
+  })
 })
 
 describe('useFarmStore actions', () => {
@@ -126,9 +231,27 @@ describe('useFarmStore actions', () => {
     )
   })
 
+  it('should_placeCornOnField_when_cornStockAvailable', () => {
+    useFarmStore.getState().rechargeCorn()
+    useFarmStore.getState().placeCorn(2, 3)
+    const s = useFarmStore.getState()
+    expect(s.placedCorn).toHaveLength(1)
+    expect(s.placedCorn[0]).toMatchObject({ col: 2, row: 3 })
+    expect(s.cornStock).toBe(FARM_LEVEL1.cornPerRecharge - 1)
+  })
+
+  it('should_notPlaceCorn_when_tileAlreadyOccupied', () => {
+    useFarmStore.getState().rechargeCorn()
+    useFarmStore.getState().placeCorn(2, 3)
+    useFarmStore.getState().placeCorn(2, 3)
+    expect(useFarmStore.getState().placedCorn).toHaveLength(1)
+  })
+
   it('should_dispatchFarmer_when_requestCollectValidEgg', () => {
     useFarmStore.setState({
-      groundEggs: [{ id: 'e1', col: 3, row: 2, collecting: false, collectElapsedSec: 0 }],
+      groundEggs: [
+        { id: 'e1', col: 3, row: 2, collecting: false, collectElapsedSec: 0, ageTimerSec: 0 },
+      ],
     })
     useFarmStore.getState().requestCollect('e1')
     const s = useFarmStore.getState()
@@ -136,12 +259,54 @@ describe('useFarmStore actions', () => {
     expect(s.groundEggs[0].collecting).toBe(true)
   })
 
-  it('should_sellWarehouseEggsForCash_when_sellEggs', () => {
-    useFarmStore.setState({ warehouseEggs: 3 })
-    useFarmStore.getState().sellEggs()
+  it('should_redirectFarmer_when_clickingNewEggWhileBusy', () => {
+    useFarmStore.setState({
+      groundEggs: [
+        { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 1, ageTimerSec: 0 },
+        { id: 'e2', col: 5, row: 4, collecting: false, collectElapsedSec: 0, ageTimerSec: 0 },
+      ],
+      farmer: { state: 'working', targetEggId: 'e1' },
+    })
+    useFarmStore.getState().requestCollect('e2')
     const s = useFarmStore.getState()
-    expect(s.warehouseEggs).toBe(0)
+    expect(s.farmer.targetEggId).toBe('e2')
+    expect(s.groundEggs.find((e) => e.id === 'e1')?.collecting).toBe(false)
+    expect(s.groundEggs.find((e) => e.id === 'e1')?.collectElapsedSec).toBe(0)
+    expect(s.groundEggs.find((e) => e.id === 'e2')?.collecting).toBe(true)
+  })
+
+  it('should_loadTruckAndDeductGoods_when_initSale', () => {
+    useFarmStore.setState({ warehouseEggs: 5 })
+    useFarmStore.getState().initSale(3, 0)
+    const s = useFarmStore.getState()
+    expect(s.warehouseEggs).toBe(2)
     expect(s.eggsSold).toBe(3)
-    expect(s.revenue).toBe(3 * FARM_LEVEL1.eggSellPrice)
+    expect(s.saleState).toBe('in-transit')
+    expect(s.pendingSaleIncome).toBe(3 * FARM_LEVEL1.eggSellPrice)
+    expect(s.cash).toBe(1_000) // cash not added yet — truck hasn't returned
+  })
+
+  it('should_addIncomeAndResetSale_when_completeSale', () => {
+    useFarmStore.setState({ saleState: 'in-transit', pendingSaleIncome: 400 })
+    useFarmStore.getState().completeSale()
+    const s = useFarmStore.getState()
+    expect(s.cash).toBe(1_000 + 400)
+    expect(s.revenue).toBe(400)
+    expect(s.saleState).toBe('idle')
+    expect(s.pendingSaleIncome).toBe(0)
+  })
+
+  it('should_addChicken_when_buyChicken', () => {
+    useFarmStore.setState({ cash: 1_000 })
+    useFarmStore.getState().buyChicken()
+    const s = useFarmStore.getState()
+    expect(s.chickens).toHaveLength(2)
+    expect(s.cash).toBe(1_000 - FARM_LEVEL1.chickenBuyPrice)
+  })
+
+  it('should_notBuyChicken_when_insufficientFunds', () => {
+    useFarmStore.setState({ cash: 100 })
+    useFarmStore.getState().buyChicken()
+    expect(useFarmStore.getState().chickens).toHaveLength(1)
   })
 })

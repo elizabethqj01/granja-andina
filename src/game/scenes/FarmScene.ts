@@ -1,7 +1,8 @@
 import Phaser from 'phaser'
 import { IsoGrid } from '../objects/IsoGrid'
 import { FarmEntity } from '../objects/FarmEntity'
-import { useFarmStore, FARM_GRID } from '@/store/farmStore'
+import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/farmStore'
+import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
 const COLORS = {
@@ -9,34 +10,40 @@ const COLORS = {
   tileA: 0x7cb342,
   tileB: 0x8bc34a,
   tileLine: 0x558b2f,
-  chicken: 0xffffff,
+  chicken: 0xfff9c4,
   egg: 0xfff3c4,
   eggCollecting: 0xffd54f,
   farmer: 0x6d4c41,
   corn: 0xfbc02d,
   eggWarehouse: 0xbcaaa4,
   cart: 0x8d6e63,
+  truck: 0x546e7a,
+  chickenShop: 0xc8e6c9,
 }
 
-/**
- * Level 1 farm scene. Renders a 2.5D isometric field with placeholder squares
- * and reconciles its visuals from `farmStore` every frame (polling keeps it
- * simple and 60 FPS-friendly). All gameplay state lives in the store; the scene
- * is purely a view + input layer.
- */
+const CORN_BATCH_PRICE = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
+
 export class FarmScene extends Phaser.Scene {
   private iso!: IsoGrid
-  private chicken!: FarmEntity
   private farmer!: FarmEntity
+  private truck!: FarmEntity
   private cornWarehouse!: FarmEntity
+  private cornStockText!: Phaser.GameObjects.Text
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
+  private chickenShop!: FarmEntity
   private floor!: Phaser.GameObjects.Graphics
-  private chickenHungerBar!: Phaser.GameObjects.Graphics
-  private chickenHungerAlert!: Phaser.GameObjects.Text
+
+  // Multiple chickens — keyed by chicken.id
+  private chickenSprites = new Map<string, FarmEntity>()
+  private chickenHungerBars = new Map<string, Phaser.GameObjects.Graphics>()
+  private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
 
   private eggSprites = new Map<string, FarmEntity>()
+  private placedCornSprites = new Map<string, FarmEntity>()
+  private tileZones: Phaser.GameObjects.Zone[] = []
   private farmerHome = new Phaser.Math.Vector2()
+  private truckAnimating = false
 
   constructor() {
     super({ key: 'Farm' })
@@ -48,123 +55,310 @@ export class FarmScene extends Phaser.Scene {
 
     this.iso = new IsoGrid({
       originX: width / 2,
-      originY: height * 0.28,
-      tileWidth: 72,
-      tileHeight: 36,
+      originY: height * 0.22,
+      tileWidth: 64,
+      tileHeight: 32,
     })
 
     this.floor = this.add.graphics().setDepth(-1)
     this.drawFloor()
+    this.createTileZones()
 
-    // Static actors anchored on the field.
-    const chickenPos = this.iso.toScreen(2, 2)
-    this.chicken = new FarmEntity(this, chickenPos.x, chickenPos.y, {
-      label: 'Gallina',
-      color: COLORS.chicken,
-      size: 26,
-    })
-
-    // Hunger indicator: a bar above the chicken + a blinking alert when starving.
-    this.chickenHungerBar = this.add.graphics().setDepth(20)
-    this.chickenHungerAlert = this.add
-      .text(chickenPos.x, chickenPos.y, '🌽 ¡Hambre!', {
-        fontSize: '11px',
-        color: '#ffffff',
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-        backgroundColor: '#c62828',
-        padding: { x: 4, y: 2 },
-      })
-      .setOrigin(0.5, 1)
-      .setDepth(21)
-      .setVisible(false)
-
-    this.farmerHome.set(width / 2, height * 0.62)
+    // Farmer
+    this.farmerHome.set(width / 2, height * 0.78)
     this.farmer = new FarmEntity(this, this.farmerHome.x, this.farmerHome.y, {
+      icon: '👨‍🌾',
       label: 'Granjero',
       color: COLORS.farmer,
       size: 24,
     })
     this.farmer.setDepth(50)
 
-    // Corn warehouse (top-center) — click to buy/refill corn (MPD).
-    this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.1, {
-      label: 'Maíz: 0',
+    // Truck — starts off-screen to the right
+    this.truck = new FarmEntity(this, width + 100, height * 0.85, {
+      icon: '🚚',
+      color: COLORS.truck,
+      size: 44,
+    })
+    this.truck.setDepth(60)
+
+    // Corn warehouse (top-center)
+    this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.08, {
+      icon: '🌽',
+      label: `Maíz (+${FARM_LEVEL1.cornPerRecharge}) $${CORN_BATCH_PRICE}`,
       color: COLORS.corn,
       size: 38,
       interactive: true,
     }).onClick(() => useFarmStore.getState().rechargeCorn())
 
-    // Egg warehouse (bottom-right) — holds collected eggs (PT).
-    this.eggWarehouse = new FarmEntity(this, width * 0.82, height * 0.82, {
-      label: 'Huevos: 0',
+    // Corn stock counter — to the right of the warehouse
+    this.cornStockText = this.add
+      .text(width / 2 + 54, height * 0.08, '🌽 ×0', {
+        fontSize: '13px',
+        color: '#fdd835',
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(30)
+
+    // Chicken shop (top-left area)
+    this.chickenShop = new FarmEntity(this, width * 0.12, height * 0.08, {
+      icon: '🐔',
+      label: `Gallina $${FARM_LEVEL1.chickenBuyPrice}`,
+      color: COLORS.chickenShop,
+      size: 38,
+      interactive: true,
+    }).onClick(() => useFarmStore.getState().buyChicken())
+
+    // Egg warehouse (bottom-right) — click to open sell modal
+    this.eggWarehouse = new FarmEntity(this, width * 0.84, height * 0.88, {
+      icon: '🥚',
+      label: 'Almacén',
       color: COLORS.eggWarehouse,
       size: 40,
-    })
+      interactive: true,
+    }).onClick(() => this.openSellModal())
 
-    // Sell cart (bottom-left) — click to sell warehouse eggs.
-    this.cart = new FarmEntity(this, width * 0.16, height * 0.82, {
+    // Cart (bottom-left) — also opens sell modal
+    this.cart = new FarmEntity(this, width * 0.14, height * 0.88, {
+      icon: '🛒',
       label: 'Vender',
       color: COLORS.cart,
       size: 38,
       interactive: true,
-    }).onClick(() => useFarmStore.getState().sellEggs())
+    }).onClick(() => this.openSellModal())
 
     this.scale.on('resize', () => this.relayout())
   }
 
+  private openSellModal(): void {
+    if (useFarmStore.getState().saleState !== 'idle') return
+    useUiStore.getState().setFarmDialog('sell')
+  }
+
   shutdown(): void {
+    this.destroyChickenVisuals()
     this.eggSprites.forEach((s) => s.destroy())
     this.eggSprites.clear()
+    this.placedCornSprites.forEach((s) => s.destroy())
+    this.placedCornSprites.clear()
+    this.tileZones.forEach((z) => z.destroy())
+    this.tileZones = []
   }
 
   update(): void {
     const farm = useFarmStore.getState()
 
-    this.cornWarehouse.setLabel(`Maíz: ${farm.cornStock}`)
-    this.eggWarehouse.setLabel(`Huevos: ${farm.warehouseEggs}`)
-
-    this.drawChickenHunger(farm.cornStock)
+    this.reconcileChickens(farm.chickens, farm.placedCorn.length)
+    this.reconcilePlacedCorn(farm.placedCorn)
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
+
+    // Corn warehouse
+    const cornStock = farm.cornStock
+    this.cornStockText.setText(`🌽 ×${cornStock}`)
+    this.cornStockText.setColor(cornStock > 0 ? '#fdd835' : '#ffffff66')
+
+    // Egg warehouse label + dim when full
+    const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
+    this.eggWarehouse.setLabel(
+      `🥚 ${farm.warehouseEggs}/${FARM_LEVEL1.maxWarehouseEggs}${full ? ' ¡LLENO!' : ''}`
+    )
+    this.eggWarehouse.setAlpha(full ? 0.85 : 1)
+
+    // Chicken shop — dim when max reached
+    const atMax = farm.chickens.length >= FARM_LEVEL1.maxChickens
+    this.chickenShop.setAlpha(atMax ? 0.45 : 1)
+
+    // Truck animation trigger
+    if (farm.saleState === 'in-transit' && !this.truckAnimating) {
+      this.startTruckAnimation()
+    }
+  }
+
+  // ── Chicken visuals ────────────────────────────────────────────────────────
+
+  private reconcileChickens(chickens: Chicken[], placedCornCount: number): void {
+    const liveIds = new Set(chickens.map((c) => c.id))
+
+    // Remove sold / missing chickens
+    for (const [id] of this.chickenSprites) {
+      if (!liveIds.has(id)) {
+        this.chickenSprites.get(id)?.destroy()
+        this.chickenHungerBars.get(id)?.destroy()
+        this.chickenHungerAlerts.get(id)?.destroy()
+        this.chickenSprites.delete(id)
+        this.chickenHungerBars.delete(id)
+        this.chickenHungerAlerts.delete(id)
+      }
+    }
+
+    for (const chicken of chickens) {
+      // Create sprite + hunger objects if new
+      if (!this.chickenSprites.has(chicken.id)) {
+        const pos = this.iso.toScreen(chicken.col, chicken.row)
+        const sprite = new FarmEntity(this, pos.x, pos.y, {
+          icon: '🐔',
+          color: COLORS.chicken,
+          size: 26,
+        })
+        this.chickenSprites.set(chicken.id, sprite)
+
+        const bar = this.add.graphics().setDepth(20)
+        this.chickenHungerBars.set(chicken.id, bar)
+
+        const alert = this.add
+          .text(pos.x, pos.y, '🌽 ¡Hambre!', {
+            fontSize: '11px',
+            color: '#ffffff',
+            fontFamily: 'monospace',
+            fontStyle: 'bold',
+            backgroundColor: '#c62828',
+            padding: { x: 4, y: 2 },
+          })
+          .setOrigin(0.5, 1)
+          .setDepth(21)
+          .setVisible(false)
+        this.chickenHungerAlerts.set(chicken.id, alert)
+      }
+
+      // Lerp sprite toward logical tile
+      const sprite = this.chickenSprites.get(chicken.id)!
+      const target = this.iso.toScreen(chicken.col, chicken.row)
+      sprite.x += (target.x - sprite.x) * 0.12
+      sprite.y += (target.y - sprite.y) * 0.12
+
+      // Update hunger bar for this chicken
+      this.drawChickenHunger(
+        this.chickenHungerBars.get(chicken.id)!,
+        this.chickenHungerAlerts.get(chicken.id)!,
+        sprite,
+        chicken,
+        placedCornCount
+      )
+    }
   }
 
   /**
-   * Show how much corn the chicken has left to eat. The bar drains as corn is
-   * consumed; at zero it turns red and a blinking "hungry" alert appears,
-   * signalling the player to refill corn.
+   * Activity bar above each chicken:
+   * - laying   → green fill (progress toward egg)
+   * - seeking  → orange (heading to corn)
+   * - wandering + corn on field → yellow (about to seek)
+   * - wandering + no corn → red empty + blinking alert
    */
-  private drawChickenHunger(cornStock: number): void {
-    const full = FARM_LEVEL1.cornPerRecharge
-    const frac = Phaser.Math.Clamp(cornStock / full, 0, 1)
-    const w = 34
-    const h = 6
-    const cx = this.chicken.x
-    const top = this.chicken.y - 36
+  private drawChickenHunger(
+    bar: Phaser.GameObjects.Graphics,
+    alert: Phaser.GameObjects.Text,
+    sprite: FarmEntity,
+    chicken: Chicken,
+    placedCornCount: number
+  ): void {
+    let frac: number
+    let barColor: number
 
-    this.chickenHungerBar.clear()
-    this.chickenHungerBar.fillStyle(0x000000, 0.4)
-    this.chickenHungerBar.fillRoundedRect(cx - w / 2, top, w, h, 2)
-
-    let color = 0x43a047 // green = well fed
-    if (cornStock === 0)
-      color = 0xe53935 // red = starving
-    else if (frac <= 0.34) color = 0xfb8c00 // orange = low
-    if (frac > 0) {
-      this.chickenHungerBar.fillStyle(color, 1)
-      this.chickenHungerBar.fillRoundedRect(cx - w / 2, top, w * frac, h, 2)
+    if (chicken.state === 'laying') {
+      frac = Phaser.Math.Clamp(chicken.layTimerSec / FARM_LEVEL1.eggLayTimeSec, 0, 1)
+      barColor = 0x43a047
+    } else if (chicken.state === 'seeking') {
+      frac = 0.4
+      barColor = 0xfb8c00
+    } else {
+      frac = placedCornCount > 0 ? 0.2 : 0
+      barColor = placedCornCount > 0 ? 0xfdd835 : 0xe53935
     }
-    this.chickenHungerBar.lineStyle(1, 0x000000, 0.5)
-    this.chickenHungerBar.strokeRoundedRect(cx - w / 2, top, w, h, 2)
 
-    const hungry = cornStock === 0
-    this.chickenHungerAlert.setPosition(cx, top - 4).setVisible(hungry)
+    const w = 36
+    const h = 6
+    const cx = sprite.x
+    const top = sprite.y - 38
+
+    bar.clear()
+    bar.fillStyle(0x000000, 0.4)
+    bar.fillRoundedRect(cx - w / 2, top, w, h, 2)
+    if (frac > 0) {
+      bar.fillStyle(barColor, 1)
+      bar.fillRoundedRect(cx - w / 2, top, w * frac, h, 2)
+    }
+    bar.lineStyle(1, 0x000000, 0.5)
+    bar.strokeRoundedRect(cx - w / 2, top, w, h, 2)
+
+    const hungry = chicken.state === 'wandering' && placedCornCount === 0
+    alert.setPosition(cx, top - 4).setVisible(hungry)
     if (hungry) {
-      this.chickenHungerAlert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
+      alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
     }
   }
 
-  // ── Rendering helpers ─────────────────────────────────────────────────────
+  private destroyChickenVisuals(): void {
+    this.chickenSprites.forEach((s) => s.destroy())
+    this.chickenHungerBars.forEach((g) => g.destroy())
+    this.chickenHungerAlerts.forEach((t) => t.destroy())
+    this.chickenSprites.clear()
+    this.chickenHungerBars.clear()
+    this.chickenHungerAlerts.clear()
+  }
+
+  // ── Truck animation ────────────────────────────────────────────────────────
+
+  private startTruckAnimation(): void {
+    this.truckAnimating = true
+    const { width, height } = this.scale
+    const y = height * 0.85
+
+    this.truck.setPosition(width + 100, y).setScale(1, 1)
+
+    // Phase 1: enter from right → center (truck faces left)
+    this.tweens.add({
+      targets: this.truck,
+      x: width * 0.5,
+      duration: 900,
+      ease: 'Linear',
+      onStart: () => this.truck.setScale(-1, 1),
+      onComplete: () => {
+        // Phase 2: pause, then exit left (going to market)
+        this.time.delayedCall(350, () => {
+          this.tweens.add({
+            targets: this.truck,
+            x: -100,
+            duration: 700,
+            ease: 'Linear',
+            onComplete: () => {
+              // Phase 3: return from left → center (facing right, carrying cash)
+              this.time.delayedCall(500, () => {
+                this.truck.setScale(1, 1)
+                this.tweens.add({
+                  targets: this.truck,
+                  x: width * 0.5,
+                  duration: 900,
+                  ease: 'Linear',
+                  onComplete: () => {
+                    // Phase 4: pause, exit right (going home)
+                    this.time.delayedCall(350, () => {
+                      this.tweens.add({
+                        targets: this.truck,
+                        x: width + 100,
+                        duration: 700,
+                        ease: 'Linear',
+                        onComplete: () => {
+                          useFarmStore.getState().completeSale()
+                          this.truckAnimating = false
+                        },
+                      })
+                    })
+                  },
+                })
+              })
+            },
+          })
+        })
+      },
+    })
+  }
+
+  // ── Grid floor & zones ─────────────────────────────────────────────────────
 
   private drawFloor(): void {
     this.floor.clear()
@@ -183,25 +377,60 @@ export class FarmScene extends Phaser.Scene {
     }
   }
 
+  private createTileZones(): void {
+    for (let row = 0; row < FARM_GRID.rows; row++) {
+      for (let col = 0; col < FARM_GRID.cols; col++) {
+        const pos = this.iso.toScreen(col, row)
+        const zone = this.add
+          .zone(pos.x, pos.y, this.iso.tileWidth, this.iso.tileHeight)
+          .setDepth(-2)
+          .setInteractive({ useHandCursor: true })
+        zone.on('pointerdown', () => useFarmStore.getState().placeCorn(col, row))
+        this.tileZones.push(zone)
+      }
+    }
+  }
+
+  // ── Entity reconcilers ─────────────────────────────────────────────────────
+
+  private reconcilePlacedCorn(corns: PlacedCorn[]): void {
+    const liveIds = new Set(corns.map((c) => c.id))
+    for (const [id, sprite] of this.placedCornSprites) {
+      if (!liveIds.has(id)) {
+        sprite.destroy()
+        this.placedCornSprites.delete(id)
+      }
+    }
+    for (const corn of corns) {
+      if (!this.placedCornSprites.has(corn.id)) {
+        const pos = this.iso.toScreen(corn.col, corn.row)
+        const sprite = new FarmEntity(this, pos.x, pos.y, {
+          icon: '🌽',
+          color: COLORS.corn,
+          size: 20,
+        })
+        sprite.setDepth(8)
+        this.placedCornSprites.set(corn.id, sprite)
+      }
+    }
+  }
+
   private reconcileEggs(
-    eggs: { id: string; col: number; row: number; collecting: boolean }[]
+    eggs: { id: string; col: number; row: number; collecting: boolean; ageTimerSec: number }[]
   ): void {
     const liveIds = new Set(eggs.map((e) => e.id))
-
-    // Remove deposited / missing eggs.
     for (const [id, sprite] of this.eggSprites) {
       if (!liveIds.has(id)) {
         sprite.destroy()
         this.eggSprites.delete(id)
       }
     }
-
-    // Add new eggs + refresh appearance.
     for (const egg of eggs) {
       let sprite = this.eggSprites.get(egg.id)
       if (!sprite) {
         const pos = this.iso.toScreen(egg.col, egg.row)
         sprite = new FarmEntity(this, pos.x, pos.y, {
+          icon: '🥚',
           color: COLORS.egg,
           size: 16,
           interactive: true,
@@ -209,7 +438,23 @@ export class FarmScene extends Phaser.Scene {
         sprite.setDepth(10)
         this.eggSprites.set(egg.id, sprite)
       }
-      sprite.setColor(egg.collecting ? COLORS.eggCollecting : COLORS.egg)
+
+      // Urgency color based on age
+      const spoilRatio = egg.ageTimerSec / FARM_LEVEL1.eggSpoilTimeSec
+      let eggColor: number
+      let eggAlpha = 1
+      if (egg.collecting) {
+        eggColor = COLORS.eggCollecting
+      } else if (spoilRatio >= 0.8) {
+        eggColor = 0xe53935
+        eggAlpha = 0.35 + 0.65 * Math.abs(Math.sin(this.time.now / 160))
+      } else if (spoilRatio >= 0.5) {
+        eggColor = 0xff8f00
+      } else {
+        eggColor = COLORS.egg
+      }
+      sprite.setColor(eggColor)
+      sprite.setAlpha(eggAlpha)
     }
   }
 
@@ -226,24 +471,35 @@ export class FarmScene extends Phaser.Scene {
       }
     }
 
-    // Smooth lerp toward the target each frame.
     this.farmer.x += (targetX - this.farmer.x) * 0.15
     this.farmer.y += (targetY - this.farmer.y) * 0.15
   }
 
+  // ── Resize ─────────────────────────────────────────────────────────────────
+
   private relayout(): void {
     const { width, height } = this.scale
-    this.iso.setOrigin(width / 2, height * 0.28)
+    this.iso.setOrigin(width / 2, height * 0.22)
     this.drawFloor()
 
-    const chickenPos = this.iso.toScreen(2, 2)
-    this.chicken.setPosition(chickenPos.x, chickenPos.y)
-    this.farmerHome.set(width / 2, height * 0.62)
-    this.cornWarehouse.setPosition(width / 2, height * 0.1)
-    this.eggWarehouse.setPosition(width * 0.82, height * 0.82)
-    this.cart.setPosition(width * 0.16, height * 0.82)
+    this.tileZones.forEach((z) => z.destroy())
+    this.tileZones = []
+    this.createTileZones()
 
-    // Eggs reposition on next reconcile via fresh sprites; clear stale ones.
+    this.cornWarehouse.setPosition(width / 2, height * 0.08)
+    this.cornStockText.setPosition(width / 2 + 54, height * 0.08)
+    this.chickenShop.setPosition(width * 0.12, height * 0.08)
+    this.eggWarehouse.setPosition(width * 0.84, height * 0.88)
+    this.cart.setPosition(width * 0.14, height * 0.88)
+    this.farmerHome.set(width / 2, height * 0.78)
+
+    if (!this.truckAnimating) {
+      this.truck.setPosition(width + 100, height * 0.85)
+    }
+
+    // Clear positioned sprites — reconcile recreates them at correct positions
+    this.placedCornSprites.forEach((s) => s.destroy())
+    this.placedCornSprites.clear()
     this.eggSprites.forEach((s) => s.destroy())
     this.eggSprites.clear()
   }

@@ -4,20 +4,13 @@ export type EntityRenderMode = 'placeholder' | 'sprite'
 
 export interface FarmEntityConfig {
   label?: string
-  color: number // placeholder fill color
-  size?: number // placeholder square size (px)
-  spriteKey?: string // texture key for 'sprite' mode (future assets)
+  icon?: string // emoji rendered inside the box
+  color: number
+  size?: number
+  spriteKey?: string
   interactive?: boolean
 }
 
-/**
- * A single farm actor (chicken, egg, farmer, warehouse, cart).
- *
- * Renders as a flat colored square today (`placeholder`) and swaps to a sprite
- * with zero call-site changes once a `spriteKey` texture is loaded — the same
- * placeholder→sprite pattern used by the café `PlantArea`. This keeps US-2
- * functional with squares while leaving the door open for animated assets.
- */
 export class FarmEntity extends Phaser.GameObjects.Container {
   private mode: EntityRenderMode
   private box: Phaser.GameObjects.Rectangle | null = null
@@ -44,6 +37,16 @@ export class FarmEntity extends Phaser.GameObjects.Container {
         .setStrokeStyle(2, 0x000000, 0.3)
         .setOrigin(0.5, 0.85)
       this.add(this.box)
+    }
+
+    // Emoji icon centered inside the box (origin 0.5,0.85 → center ≈ y = -size*0.35)
+    if (cfg.icon) {
+      const iconSize = Math.max(12, Math.floor(size * 0.55))
+      this.add(
+        scene.add
+          .text(0, -(size * 0.35), cfg.icon, { fontSize: `${iconSize}px` })
+          .setOrigin(0.5, 0.5)
+      )
     }
 
     if (cfg.label) {
@@ -77,7 +80,6 @@ export class FarmEntity extends Phaser.GameObjects.Container {
     return this.mode
   }
 
-  /** Forward pointer events from the entity's hit zone. */
   onClick(handler: () => void): this {
     this.list.forEach((child) => {
       if (child instanceof Phaser.GameObjects.Zone) child.on('pointerdown', handler)
