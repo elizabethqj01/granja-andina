@@ -21,10 +21,10 @@ const SZ = {
 } as const
 
 const COLORS = {
-  bg: 0x88c057,
-  tileA: 0x7cb342,
-  tileB: 0x8bc34a,
-  tileLine: 0x558b2f,
+  bg: 0x3a6b1a, // dark grass outside the farm
+  tileA: 0x7ec850, // bright farm tile A
+  tileB: 0x95d95f, // bright farm tile B
+  tileLine: 0x4e9a28,
   chicken: 0xfff9c4,
   egg: 0xfff3c4,
   eggCollecting: 0xffd54f,
