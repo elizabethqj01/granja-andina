@@ -69,9 +69,9 @@ export class FarmScene extends Phaser.Scene {
 
     this.iso = new IsoGrid({
       originX: width / 2,
-      originY: height * 0.22,
-      tileWidth: 64,
-      tileHeight: 32,
+      originY: height * 0.26,
+      tileWidth: 96,
+      tileHeight: 48,
     })
 
     this.floor = this.add.graphics().setDepth(-1)
@@ -489,7 +489,7 @@ export class FarmScene extends Phaser.Scene {
 
   private relayout(): void {
     const { width, height } = this.scale
-    this.iso.setOrigin(width / 2, height * 0.22)
+    this.iso.setOrigin(width / 2, height * 0.26)
     this.drawFloor()
 
     this.tileZones.forEach((z) => z.destroy())
