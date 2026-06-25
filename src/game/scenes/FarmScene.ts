@@ -21,7 +21,7 @@ const SZ = {
 } as const
 
 const COLORS = {
-  bg: 0x3a6b1a, // dark grass outside the farm
+  bg: 0x5a8f2e, // medium grass outside the farm
   tileA: 0x7ec850, // bright farm tile A
   tileB: 0x95d95f, // bright farm tile B
   tileLine: 0x4e9a28,
