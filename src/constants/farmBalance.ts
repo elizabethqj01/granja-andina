@@ -30,9 +30,16 @@ export const FARM_LEVEL1 = {
   chickenWanderIntervalSec: 2,
 
   // ── Animal shop ────────────────────────────────────────────────────────────
-  chickenBuyPrice: 500, // cost to add one more chicken
-  chickenSellPrice: 250, // revenue when selling a chicken (half of buy price)
-  maxChickens: 4, // maximum chickens allowed on the field
+  chickenBuyPrice: 500,
+  chickenSellPrice: 250,
+  maxChickens: 4,
+
+  // ── Chicken energy system ──────────────────────────────────────────────────
+  chickenMaxEnergy: 7, // full energy bar
+  chickenHungerThreshold: 3, // below this the chicken seeks corn
+  chickenEnergyDrainPerSec: 0.15, // drains to 0 in ~46 s
+  chickenCornEnergyRestore: 5, // energy restored per corn eaten (capped at max)
+  eggLayAnimSec: 2, // how long the laying animation lasts before egg drops
 } as const
 
 export type FarmLevelConfig = typeof FARM_LEVEL1

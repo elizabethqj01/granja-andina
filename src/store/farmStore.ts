@@ -18,8 +18,9 @@ export interface Chicken {
   row: number
   state: ChickenState
   targetCornId: string | null
-  layTimerSec: number
+  layTimerSec: number // counts up in wandering (production timer) and laying (anim timer)
   wanderCooldownSec: number
+  energy: number // 0..chickenMaxEnergy; drains over time, restored by eating corn
 }
 
 export interface GroundEgg {
@@ -125,6 +126,29 @@ function randomNeighbor(col: number, row: number): { col: number; row: number } 
   return dirs[Math.floor(Math.random() * dirs.length)]
 }
 
+// Returns a neighbor tile that has no corn on it, or null if all neighbors are blocked
+function findAdjacentFreeTile(
+  col: number,
+  row: number,
+  placedCorn: PlacedCorn[]
+): { col: number; row: number } | null {
+  const dirs = [
+    { col: col - 1, row },
+    { col: col + 1, row },
+    { col, row: row - 1 },
+    { col, row: row + 1 },
+  ].filter(
+    (p) =>
+      p.col >= 0 &&
+      p.col < FARM_GRID.cols &&
+      p.row >= 0 &&
+      p.row < FARM_GRID.rows &&
+      !placedCorn.some((c) => c.col === p.col && c.row === p.row)
+  )
+  if (dirs.length === 0) return null
+  return dirs[Math.floor(Math.random() * dirs.length)]
+}
+
 // ── Stars ────────────────────────────────────────────────────────────────────
 
 export function computeStars(elapsedSec: number): LevelStars {
@@ -147,6 +171,7 @@ function initialFarmState(): FarmState {
     targetCornId: null,
     layTimerSec: 0,
     wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
+    energy: FARM_LEVEL1.chickenMaxEnergy,
   }))
 
   return {
@@ -191,48 +216,19 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
   next.cifAccrued += cfg.cifCostPerSec
   if (next.farmer.state === 'working') next.modAccrued += cfg.modCostPerSec
 
-  // 2) Chicken AI: wandering → seeking → eating → laying → wandering
+  // 2) Chicken AI
+  //    Energy drains over time always (not from laying eggs).
+  //    When energy <= hungerThreshold the chicken seeks corn to recharge.
+  //    Eggs are laid on a timer while wandering (decoupled from corn eating).
+  //    Chickens never lay on a corn tile — they move to an adjacent free tile first.
   for (const chicken of next.chickens) {
-    if (chicken.state === 'wandering') {
-      const corn = findNearest(next.placedCorn, chicken.col, chicken.row)
-      if (corn) {
-        chicken.state = 'seeking'
-        chicken.targetCornId = corn.id
-      } else {
-        chicken.wanderCooldownSec -= 1
-        if (chicken.wanderCooldownSec <= 0) {
-          const n = randomNeighbor(chicken.col, chicken.row)
-          chicken.col = n.col
-          chicken.row = n.row
-          chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
-        }
-      }
-    } else if (chicken.state === 'seeking') {
-      const corn = next.placedCorn.find((c) => c.id === chicken.targetCornId)
-      if (!corn) {
-        // Corn was removed (eaten by another chicken or the store); start over
-        chicken.state = 'wandering'
-        chicken.targetCornId = null
-      } else if (chicken.col === corn.col && chicken.row === corn.row) {
-        // On the corn tile: eat it and start the lay countdown
-        next.placedCorn = next.placedCorn.filter((c) => c.id !== corn.id)
-        next.cornConsumedValue += cfg.cornUnitCost
-        chicken.state = 'laying'
-        chicken.targetCornId = null
-        chicken.layTimerSec = 0
-      } else {
-        // Move one step toward the corn each tick
-        const step = stepToward(
-          { col: chicken.col, row: chicken.row },
-          { col: corn.col, row: corn.row }
-        )
-        chicken.col = step.col
-        chicken.row = step.row
-      }
-    } else {
-      // 'laying' — countdown to egg
+    // Energy drain — happens every tick regardless of state
+    chicken.energy = Math.max(0, chicken.energy - cfg.chickenEnergyDrainPerSec)
+
+    if (chicken.state === 'laying') {
+      // Laying animation timer — egg drops after eggLayAnimSec
       chicken.layTimerSec += 1
-      if (chicken.layTimerSec >= cfg.eggLayTimeSec && next.groundEggs.length < cfg.maxGroundEggs) {
+      if (chicken.layTimerSec >= cfg.eggLayAnimSec && next.groundEggs.length < cfg.maxGroundEggs) {
         next.groundEggs.push({
           id: nextEggId(),
           col: chicken.col,
@@ -244,6 +240,74 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         chicken.layTimerSec = 0
         chicken.state = 'wandering'
         chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+      }
+    } else if (chicken.state === 'seeking') {
+      const corn = next.placedCorn.find((c) => c.id === chicken.targetCornId)
+      if (!corn) {
+        chicken.state = 'wandering'
+        chicken.targetCornId = null
+      } else if (chicken.col === corn.col && chicken.row === corn.row) {
+        // Reached corn: eat it, restore energy, back to wandering
+        next.placedCorn = next.placedCorn.filter((c) => c.id !== corn.id)
+        next.cornConsumedValue += cfg.cornUnitCost
+        chicken.energy = Math.min(
+          cfg.chickenMaxEnergy,
+          chicken.energy + cfg.chickenCornEnergyRestore
+        )
+        chicken.state = 'wandering'
+        chicken.targetCornId = null
+        chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+      } else {
+        const step = stepToward(
+          { col: chicken.col, row: chicken.row },
+          { col: corn.col, row: corn.row }
+        )
+        chicken.col = step.col
+        chicken.row = step.row
+      }
+    } else {
+      // wandering: hunger check → random movement → production timer
+      if (chicken.energy <= cfg.chickenHungerThreshold) {
+        const corn = findNearest(next.placedCorn, chicken.col, chicken.row)
+        if (corn) {
+          chicken.state = 'seeking'
+          chicken.targetCornId = corn.id
+          continue
+        }
+        // No corn available — keep wandering hungry
+      }
+
+      // Random movement
+      chicken.wanderCooldownSec -= 1
+      if (chicken.wanderCooldownSec <= 0) {
+        const n = randomNeighbor(chicken.col, chicken.row)
+        chicken.col = n.col
+        chicken.row = n.row
+        chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+      }
+
+      // Production timer — only lays if energy > 0
+      if (chicken.energy > 0) {
+        chicken.layTimerSec += 1
+        if (chicken.layTimerSec >= cfg.eggLayTimeSec) {
+          const cornOnTile = next.placedCorn.some(
+            (c) => c.col === chicken.col && c.row === chicken.row
+          )
+          if (cornOnTile) {
+            // Move to an adjacent corn-free tile before laying
+            const free = findAdjacentFreeTile(chicken.col, chicken.row, next.placedCorn)
+            if (free) {
+              chicken.col = free.col
+              chicken.row = free.row
+              chicken.state = 'laying'
+              chicken.layTimerSec = 0
+            }
+            // If no free tile, defer until next tick
+          } else {
+            chicken.state = 'laying'
+            chicken.layTimerSec = 0
+          }
+        }
       }
     }
   }
@@ -421,6 +485,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             targetCornId: null,
             layTimerSec: 0,
             wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
+            energy: FARM_LEVEL1.chickenMaxEnergy,
           },
         ],
       })

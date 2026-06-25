@@ -1,13 +1,7 @@
 import Phaser from 'phaser'
 import { IsoGrid } from '../objects/IsoGrid'
 import { FarmEntity } from '../objects/FarmEntity'
-import {
-  useFarmStore,
-  FARM_GRID,
-  type Chicken,
-  type ChickenState,
-  type PlacedCorn,
-} from '@/store/farmStore'
+import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
@@ -63,7 +57,6 @@ export class FarmScene extends Phaser.Scene {
 
   // Animated chicken sprites
   private chickenSprites = new Map<string, Phaser.GameObjects.Sprite>()
-  private chickenStates = new Map<string, ChickenState>()
   private chickenHungerBars = new Map<string, Phaser.GameObjects.Graphics>()
   private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
 
@@ -257,7 +250,6 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerBars.get(id)?.destroy()
         this.chickenHungerAlerts.get(id)?.destroy()
         this.chickenSprites.delete(id)
-        this.chickenStates.delete(id)
         this.chickenHungerBars.delete(id)
         this.chickenHungerAlerts.delete(id)
       }
@@ -270,7 +262,6 @@ export class FarmScene extends Phaser.Scene {
         const sprite = this.add.sprite(pos.x, pos.y, 'chicken').setScale(CHICKEN_SCALE).setDepth(15)
         sprite.play('chicken_idle')
         this.chickenSprites.set(chicken.id, sprite)
-        this.chickenStates.set(chicken.id, chicken.state)
 
         const bar = this.add.graphics().setDepth(20)
         this.chickenHungerBars.set(chicken.id, bar)
@@ -292,23 +283,24 @@ export class FarmScene extends Phaser.Scene {
 
       const sprite = this.chickenSprites.get(chicken.id)!
       const target = this.iso.toScreen(chicken.col, chicken.row)
+      const dx = target.x - sprite.x
+      const dy = target.y - sprite.y
+      const isMoving = Math.sqrt(dx * dx + dy * dy) > 4
 
       // Flip horizontally based on movement direction
-      const dx = target.x - sprite.x
       if (Math.abs(dx) > 2) sprite.setFlipX(dx < 0)
 
       // Lerp toward target tile
-      sprite.x += (target.x - sprite.x) * 0.12
-      sprite.y += (target.y - sprite.y) * 0.12
+      sprite.x += dx * 0.12
+      sprite.y += dy * 0.12
 
-      // Play animation only when state changes
-      const lastState = this.chickenStates.get(chicken.id)
-      if (lastState !== chicken.state) {
-        this.chickenStates.set(chicken.id, chicken.state)
-        if (chicken.state === 'wandering') sprite.play('chicken_idle')
-        else if (chicken.state === 'seeking') sprite.play('chicken_walk')
-        else if (chicken.state === 'laying') sprite.play('chicken_lay')
-      }
+      // Animation: wandering uses walk/idle based on actual pixel movement
+      const currentAnim = sprite.anims.currentAnim?.key
+      let desiredAnim: string
+      if (chicken.state === 'laying') desiredAnim = 'chicken_lay'
+      else if (chicken.state === 'seeking') desiredAnim = 'chicken_walk'
+      else desiredAnim = isMoving ? 'chicken_walk' : 'chicken_idle'
+      if (currentAnim !== desiredAnim) sprite.play(desiredAnim)
 
       this.drawChickenHunger(
         this.chickenHungerBars.get(chicken.id)!,
@@ -327,39 +319,29 @@ export class FarmScene extends Phaser.Scene {
     chicken: Chicken,
     placedCornCount: number
   ): void {
-    let frac: number
-    let barColor: number
-
-    if (chicken.state === 'laying') {
-      frac = Phaser.Math.Clamp(chicken.layTimerSec / FARM_LEVEL1.eggLayTimeSec, 0, 1)
-      barColor = 0x43a047
-    } else if (chicken.state === 'seeking') {
-      frac = 0.4
-      barColor = 0xfb8c00
-    } else {
-      frac = placedCornCount > 0 ? 0.2 : 0
-      barColor = placedCornCount > 0 ? 0xfdd835 : 0xe53935
-    }
+    const energyFrac = chicken.energy / FARM_LEVEL1.chickenMaxEnergy
+    const isHungry = chicken.energy <= FARM_LEVEL1.chickenHungerThreshold
+    const barColor = isHungry ? 0xe53935 : energyFrac < 0.6 ? 0xfb8c00 : 0x43a047
 
     const w = 54
     const h = 7
     const cx = sprite.x
-    // Sprite origin is center (0.5,0.5); scaled height = 128*CHICKEN_SCALE
     const top = sprite.y - (128 * CHICKEN_SCALE) / 2 - 12
 
     bar.clear()
     bar.fillStyle(0x000000, 0.45)
     bar.fillRoundedRect(cx - w / 2, top, w, h, 2)
-    if (frac > 0) {
+    if (energyFrac > 0) {
       bar.fillStyle(barColor, 1)
-      bar.fillRoundedRect(cx - w / 2, top, w * frac, h, 2)
+      bar.fillRoundedRect(cx - w / 2, top, w * energyFrac, h, 2)
     }
     bar.lineStyle(1, 0x000000, 0.5)
     bar.strokeRoundedRect(cx - w / 2, top, w, h, 2)
 
-    const hungry = chicken.state === 'wandering' && placedCornCount === 0
-    alert.setPosition(cx, top - 4).setVisible(hungry)
-    if (hungry) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
+    // Alert when hungry AND no corn available to eat
+    const showAlert = isHungry && placedCornCount === 0
+    alert.setPosition(cx, top - 4).setVisible(showAlert)
+    if (showAlert) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
   }
 
   private destroyChickenVisuals(): void {
@@ -367,7 +349,6 @@ export class FarmScene extends Phaser.Scene {
     this.chickenHungerBars.forEach((g) => g.destroy())
     this.chickenHungerAlerts.forEach((t) => t.destroy())
     this.chickenSprites.clear()
-    this.chickenStates.clear()
     this.chickenHungerBars.clear()
     this.chickenHungerAlerts.clear()
   }

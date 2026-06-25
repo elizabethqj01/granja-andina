@@ -16,6 +16,7 @@ const defaultChicken = {
   targetCornId: null,
   layTimerSec: 0,
   wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
+  energy: FARM_LEVEL1.chickenMaxEnergy,
 }
 
 function baseState(overrides: Partial<FarmState> = {}): FarmState {
@@ -72,14 +73,28 @@ describe('advanceFarm', () => {
     expect(next.modAccrued).toBe(0)
   })
 
-  it('should_notLayEgg_when_noPlacedCorn', () => {
-    let state = baseState()
-    for (let i = 0; i < FARM_LEVEL1.eggLayTimeSec + 5; i++) state = advanceFarm(state)
-    expect(state.groundEggs).toHaveLength(0)
+  it('should_layEgg_automatically_when_productionTimerFires', () => {
+    // Eggs are now laid on a timer (decoupled from corn)
+    const state = baseState({
+      chickens: [{ ...defaultChicken, layTimerSec: FARM_LEVEL1.eggLayTimeSec - 1 }],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('laying')
   })
 
-  it('should_enterSeekingState_when_placedCornExists', () => {
+  it('should_notSeekCorn_when_energyAboveThreshold', () => {
+    // Full-energy chicken ignores corn — only hungry chickens seek it
     const state = baseState({
+      chickens: [{ ...defaultChicken, energy: FARM_LEVEL1.chickenMaxEnergy }],
+      placedCorn: [{ id: 'corn-1', col: 1, row: 1 }],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('wandering')
+  })
+
+  it('should_seekCorn_when_energyBelowThreshold', () => {
+    const state = baseState({
+      chickens: [{ ...defaultChicken, energy: FARM_LEVEL1.chickenHungerThreshold }],
       placedCorn: [{ id: 'corn-1', col: 1, row: 1 }],
     })
     const next = advanceFarm(state)
@@ -87,18 +102,22 @@ describe('advanceFarm', () => {
     expect(next.chickens[0].targetCornId).toBe('corn-1')
   })
 
-  it('should_eatCornAndEnterLayingState_when_seekingAndOnCornTile', () => {
+  it('should_eatCornAndRestoreEnergy_when_seekingAndOnCornTile', () => {
     const state = baseState({
-      chickens: [{ ...defaultChicken, col: 2, row: 2, state: 'seeking', targetCornId: 'corn-1' }],
+      chickens: [
+        { ...defaultChicken, col: 2, row: 2, state: 'seeking', targetCornId: 'corn-1', energy: 1 },
+      ],
       placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
     })
     const next = advanceFarm(state)
-    expect(next.chickens[0].state).toBe('laying')
+    // Corn eaten, energy restored, back to wandering (not laying directly)
+    expect(next.chickens[0].state).toBe('wandering')
     expect(next.placedCorn).toHaveLength(0)
     expect(next.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
+    expect(next.chickens[0].energy).toBeGreaterThan(1)
   })
 
-  it('should_layEggAtChickenPosition_when_layTimerElapses', () => {
+  it('should_layEggAtChickenPosition_when_layAnimTimerElapses', () => {
     const state = baseState({
       chickens: [
         {
@@ -106,7 +125,7 @@ describe('advanceFarm', () => {
           col: 3,
           row: 5,
           state: 'laying',
-          layTimerSec: FARM_LEVEL1.eggLayTimeSec - 1,
+          layTimerSec: FARM_LEVEL1.eggLayAnimSec - 1,
         },
       ],
     })
@@ -115,6 +134,22 @@ describe('advanceFarm', () => {
     expect(next.groundEggs[0].col).toBe(3)
     expect(next.groundEggs[0].row).toBe(5)
     expect(next.chickens[0].state).toBe('wandering')
+  })
+
+  it('should_drainEnergy_every_tick', () => {
+    const state = baseState()
+    const next = advanceFarm(state)
+    expect(next.chickens[0].energy).toBeLessThan(FARM_LEVEL1.chickenMaxEnergy)
+  })
+
+  it('should_notLayEgg_when_energyIsZero', () => {
+    // Chicken with 0 energy should not trigger the production timer
+    const state = baseState({
+      chickens: [{ ...defaultChicken, energy: 0, layTimerSec: FARM_LEVEL1.eggLayTimeSec - 1 }],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('wandering')
+    expect(next.groundEggs).toHaveLength(0)
   })
 
   it('should_removeEgg_when_ageExceedsSpoilTimer', () => {
