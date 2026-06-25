@@ -1,17 +1,21 @@
 import Phaser from 'phaser'
 import { IsoGrid } from '../objects/IsoGrid'
 import { FarmEntity } from '../objects/FarmEntity'
-import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/farmStore'
+import {
+  useFarmStore,
+  FARM_GRID,
+  type Chicken,
+  type ChickenState,
+  type PlacedCorn,
+} from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
-// Entities on the field are rendered LARGER than their logical tile (64×32).
-// This matches Farm Frenzy's style: 1-tile logic, oversized sprite.
 const SZ = {
-  chicken: 52, // ~0.8× tile diagonal — dominates the tile visually
-  egg: 34, // half the chicken — clearly visible
-  corn: 30, // slightly smaller than egg so stacking reads cleanly
+  egg: 34,
+  corn: 30,
   farmer: 48,
   truck: 70,
   cornWarehouse: 66,
@@ -20,12 +24,20 @@ const SZ = {
   cart: 58,
 } as const
 
+// Chicken sprite sheet layout (128×128 px per frame, 6 cols × 4 rows = 768×512)
+const CHICKEN_SCALE = 0.52 // renders ~66px on screen
+const CHICKEN_ANIM = {
+  idle: { start: 0, end: 3, rate: 4 },
+  walk: { start: 6, end: 11, rate: 8 },
+  eat: { start: 12, end: 15, rate: 6 },
+  lay: { start: 18, end: 22, rate: 5 },
+} as const
+
 const COLORS = {
   bg: 0x88c057,
   tileA: 0x7cb342,
   tileB: 0x8bc34a,
   tileLine: 0x558b2f,
-  chicken: 0xfff9c4,
   egg: 0xfff3c4,
   eggCollecting: 0xffd54f,
   farmer: 0x6d4c41,
@@ -49,7 +61,9 @@ export class FarmScene extends Phaser.Scene {
   private chickenShop!: FarmEntity
   private floor!: Phaser.GameObjects.Graphics
 
-  private chickenSprites = new Map<string, FarmEntity>()
+  // Animated chicken sprites
+  private chickenSprites = new Map<string, Phaser.GameObjects.Sprite>()
+  private chickenStates = new Map<string, ChickenState>()
   private chickenHungerBars = new Map<string, Phaser.GameObjects.Graphics>()
   private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
 
@@ -61,6 +75,13 @@ export class FarmScene extends Phaser.Scene {
 
   constructor() {
     super({ key: 'Farm' })
+  }
+
+  preload(): void {
+    this.load.spritesheet('chicken', chickenSheetUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    })
   }
 
   create(): void {
@@ -78,7 +99,45 @@ export class FarmScene extends Phaser.Scene {
     this.drawFloor()
     this.createTileZones()
 
-    // Farmer — parked at the bottom-center when idle
+    // Register chicken animations
+    this.anims.create({
+      key: 'chicken_idle',
+      frames: this.anims.generateFrameNumbers('chicken', {
+        start: CHICKEN_ANIM.idle.start,
+        end: CHICKEN_ANIM.idle.end,
+      }),
+      frameRate: CHICKEN_ANIM.idle.rate,
+      repeat: -1,
+    })
+    this.anims.create({
+      key: 'chicken_walk',
+      frames: this.anims.generateFrameNumbers('chicken', {
+        start: CHICKEN_ANIM.walk.start,
+        end: CHICKEN_ANIM.walk.end,
+      }),
+      frameRate: CHICKEN_ANIM.walk.rate,
+      repeat: -1,
+    })
+    this.anims.create({
+      key: 'chicken_eat',
+      frames: this.anims.generateFrameNumbers('chicken', {
+        start: CHICKEN_ANIM.eat.start,
+        end: CHICKEN_ANIM.eat.end,
+      }),
+      frameRate: CHICKEN_ANIM.eat.rate,
+      repeat: 0,
+    })
+    this.anims.create({
+      key: 'chicken_lay',
+      frames: this.anims.generateFrameNumbers('chicken', {
+        start: CHICKEN_ANIM.lay.start,
+        end: CHICKEN_ANIM.lay.end,
+      }),
+      frameRate: CHICKEN_ANIM.lay.rate,
+      repeat: 0,
+    })
+
+    // Farmer
     this.farmerHome.set(width / 2, height * 0.82)
     this.farmer = new FarmEntity(this, this.farmerHome.x, this.farmerHome.y, {
       icon: '👨‍🌾',
@@ -96,7 +155,7 @@ export class FarmScene extends Phaser.Scene {
     })
     this.truck.setDepth(60)
 
-    // Corn warehouse — top-center, clickable
+    // Corn warehouse — top-center
     this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.09, {
       icon: '🌽',
       label: `Comprar maíz ×${FARM_LEVEL1.cornPerRecharge}  $${CORN_BATCH_PRICE}`,
@@ -105,7 +164,6 @@ export class FarmScene extends Phaser.Scene {
       interactive: true,
     }).onClick(() => useFarmStore.getState().rechargeCorn())
 
-    // Corn stock counter — to the right of the warehouse
     this.cornStockText = this.add
       .text(width / 2 + 74, height * 0.09, '🌽 ×0', {
         fontSize: '16px',
@@ -127,7 +185,7 @@ export class FarmScene extends Phaser.Scene {
       interactive: true,
     }).onClick(() => useFarmStore.getState().buyChicken())
 
-    // Egg warehouse — bottom-right, opens sell modal
+    // Egg warehouse — bottom-right
     this.eggWarehouse = new FarmEntity(this, width * 0.86, height * 0.88, {
       icon: '🥚',
       label: 'Almacén',
@@ -136,7 +194,7 @@ export class FarmScene extends Phaser.Scene {
       interactive: true,
     }).onClick(() => this.openSellModal())
 
-    // Cart — bottom-left, also opens sell modal
+    // Cart — bottom-left
     this.cart = new FarmEntity(this, width * 0.13, height * 0.88, {
       icon: '🛒',
       label: 'Vender',
@@ -171,22 +229,18 @@ export class FarmScene extends Phaser.Scene {
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
 
-    // Corn stock counter
     const cornStock = farm.cornStock
     this.cornStockText.setText(`🌽 ×${cornStock}`)
     this.cornStockText.setColor(cornStock > 0 ? '#fdd835' : '#ffffff66')
 
-    // Egg warehouse — live count + LLENO warning
     const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
     this.eggWarehouse.setLabel(
       `🥚 ${farm.warehouseEggs}/${FARM_LEVEL1.maxWarehouseEggs}${full ? '  ¡LLENO!' : ''}`
     )
     this.eggWarehouse.setAlpha(full ? 0.85 : 1)
 
-    // Chicken shop — dim when at max
     this.chickenShop.setAlpha(farm.chickens.length >= FARM_LEVEL1.maxChickens ? 0.4 : 1)
 
-    // Truck animation
     if (farm.saleState === 'in-transit' && !this.truckAnimating) {
       this.startTruckAnimation()
     }
@@ -203,6 +257,7 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerBars.get(id)?.destroy()
         this.chickenHungerAlerts.get(id)?.destroy()
         this.chickenSprites.delete(id)
+        this.chickenStates.delete(id)
         this.chickenHungerBars.delete(id)
         this.chickenHungerAlerts.delete(id)
       }
@@ -211,13 +266,11 @@ export class FarmScene extends Phaser.Scene {
     for (const chicken of chickens) {
       if (!this.chickenSprites.has(chicken.id)) {
         const pos = this.iso.toScreen(chicken.col, chicken.row)
-        const sprite = new FarmEntity(this, pos.x, pos.y, {
-          icon: '🐔',
-          color: COLORS.chicken,
-          size: SZ.chicken,
-        })
-        sprite.setDepth(15)
+
+        const sprite = this.add.sprite(pos.x, pos.y, 'chicken').setScale(CHICKEN_SCALE).setDepth(15)
+        sprite.play('chicken_idle')
         this.chickenSprites.set(chicken.id, sprite)
+        this.chickenStates.set(chicken.id, chicken.state)
 
         const bar = this.add.graphics().setDepth(20)
         this.chickenHungerBars.set(chicken.id, bar)
@@ -237,11 +290,25 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerAlerts.set(chicken.id, alert)
       }
 
-      // Lerp sprite toward target tile
       const sprite = this.chickenSprites.get(chicken.id)!
       const target = this.iso.toScreen(chicken.col, chicken.row)
+
+      // Flip horizontally based on movement direction
+      const dx = target.x - sprite.x
+      if (Math.abs(dx) > 2) sprite.setFlipX(dx < 0)
+
+      // Lerp toward target tile
       sprite.x += (target.x - sprite.x) * 0.12
       sprite.y += (target.y - sprite.y) * 0.12
+
+      // Play animation only when state changes
+      const lastState = this.chickenStates.get(chicken.id)
+      if (lastState !== chicken.state) {
+        this.chickenStates.set(chicken.id, chicken.state)
+        if (chicken.state === 'wandering') sprite.play('chicken_idle')
+        else if (chicken.state === 'seeking') sprite.play('chicken_walk')
+        else if (chicken.state === 'laying') sprite.play('chicken_lay')
+      }
 
       this.drawChickenHunger(
         this.chickenHungerBars.get(chicken.id)!,
@@ -253,17 +320,10 @@ export class FarmScene extends Phaser.Scene {
     }
   }
 
-  /**
-   * Activity bar above each chicken.
-   * - laying   → green fill (progress to egg)
-   * - seeking  → orange (walking to corn)
-   * - wandering + corn available → yellow
-   * - wandering + no corn → red empty + blinking alert
-   */
   private drawChickenHunger(
     bar: Phaser.GameObjects.Graphics,
     alert: Phaser.GameObjects.Text,
-    sprite: FarmEntity,
+    sprite: Phaser.GameObjects.Sprite,
     chicken: Chicken,
     placedCornCount: number
   ): void {
@@ -284,8 +344,8 @@ export class FarmScene extends Phaser.Scene {
     const w = 54
     const h = 7
     const cx = sprite.x
-    // The chicken box top is at sprite.y - SZ.chicken*0.85
-    const top = sprite.y - SZ.chicken * 0.85 - 12
+    // Sprite origin is center (0.5,0.5); scaled height = 128*CHICKEN_SCALE
+    const top = sprite.y - (128 * CHICKEN_SCALE) / 2 - 12
 
     bar.clear()
     bar.fillStyle(0x000000, 0.45)
@@ -307,6 +367,7 @@ export class FarmScene extends Phaser.Scene {
     this.chickenHungerBars.forEach((g) => g.destroy())
     this.chickenHungerAlerts.forEach((t) => t.destroy())
     this.chickenSprites.clear()
+    this.chickenStates.clear()
     this.chickenHungerBars.clear()
     this.chickenHungerAlerts.clear()
   }
@@ -320,7 +381,6 @@ export class FarmScene extends Phaser.Scene {
 
     this.truck.setPosition(width + 150, y).setScale(1, 1)
 
-    // Phase 1: enter from right (faces left)
     this.tweens.add({
       targets: this.truck,
       x: width * 0.5,
@@ -328,7 +388,6 @@ export class FarmScene extends Phaser.Scene {
       ease: 'Linear',
       onStart: () => this.truck.setScale(-1, 1),
       onComplete: () => {
-        // Phase 2: pause, then exit left (to market)
         this.time.delayedCall(350, () => {
           this.tweens.add({
             targets: this.truck,
@@ -336,7 +395,6 @@ export class FarmScene extends Phaser.Scene {
             duration: 700,
             ease: 'Linear',
             onComplete: () => {
-              // Phase 3: return from left (faces right, carrying cash)
               this.time.delayedCall(500, () => {
                 this.truck.setScale(1, 1)
                 this.tweens.add({
@@ -345,7 +403,6 @@ export class FarmScene extends Phaser.Scene {
                   duration: 900,
                   ease: 'Linear',
                   onComplete: () => {
-                    // Phase 4: pause, exit right
                     this.time.delayedCall(350, () => {
                       this.tweens.add({
                         targets: this.truck,
@@ -449,7 +506,6 @@ export class FarmScene extends Phaser.Scene {
         this.eggSprites.set(egg.id, sprite)
       }
 
-      // Urgency color + alpha pulse near spoil
       const spoilRatio = egg.ageTimerSec / FARM_LEVEL1.eggSpoilTimeSec
       let eggColor: number
       let eggAlpha = 1
