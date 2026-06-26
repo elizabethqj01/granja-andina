@@ -6,6 +6,8 @@ import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
 import farmerSheetUrl from '@/assets/sprites/farmer_sheet.png'
+import eggUrl from '@/assets/sprites/egg.png'
+import cornUrl from '@/assets/sprites/corn.png'
 import terrainUrl from '@/assets/sprites/terrain_tiles.png'
 import fenceUrl from '@/assets/sprites/fence_sheet.png'
 import decorationsUrl from '@/assets/sprites/decorations_sheet.png'
@@ -79,8 +81,8 @@ export class FarmScene extends Phaser.Scene {
   private chickenHungerBars = new Map<string, Phaser.GameObjects.Graphics>()
   private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
 
-  private eggSprites = new Map<string, FarmEntity>()
-  private placedCornSprites = new Map<string, FarmEntity>()
+  private eggSprites = new Map<string, Phaser.GameObjects.Image>()
+  private placedCornSprites = new Map<string, Phaser.GameObjects.Image>()
   private tileZones: Phaser.GameObjects.Zone[] = []
   private farmerHome = new Phaser.Math.Vector2()
   private truckAnimating = false
@@ -98,6 +100,8 @@ export class FarmScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     })
+    this.load.image('egg', eggUrl)
+    this.load.image('corn', cornUrl)
     this.load.spritesheet('terrain', terrainUrl, { frameWidth: 96, frameHeight: 48 })
     this.load.spritesheet('fence', fenceUrl, { frameWidth: 96, frameHeight: 128 })
     this.load.spritesheet('decorations', decorationsUrl, { frameWidth: 96, frameHeight: 128 })
@@ -664,12 +668,11 @@ export class FarmScene extends Phaser.Scene {
     for (const corn of corns) {
       if (!this.placedCornSprites.has(corn.id)) {
         const pos = this.iso.toScreen(corn.col, corn.row)
-        const sprite = new FarmEntity(this, pos.x, pos.y, {
-          icon: '🌽',
-          color: COLORS.corn,
-          size: SZ.corn,
-        })
-        sprite.setDepth(8)
+        const sprite = this.add
+          .image(pos.x, pos.y, 'corn')
+          .setOrigin(0.5, 0.85)
+          .setScale(SZ.corn / 64)
+          .setDepth(8)
         this.placedCornSprites.set(corn.id, sprite)
       }
     }
@@ -689,31 +692,26 @@ export class FarmScene extends Phaser.Scene {
       let sprite = this.eggSprites.get(egg.id)
       if (!sprite) {
         const pos = this.iso.toScreen(egg.col, egg.row)
-        sprite = new FarmEntity(this, pos.x, pos.y, {
-          icon: '🥚',
-          color: COLORS.egg,
-          size: SZ.egg,
-          interactive: true,
-        }).onClick(() => useFarmStore.getState().requestCollect(egg.id))
-        sprite.setDepth(10)
+        sprite = this.add
+          .image(pos.x, pos.y, 'egg')
+          .setOrigin(0.5, 0.85)
+          .setScale(SZ.egg / 64)
+          .setDepth(10)
+          .setInteractive({ useHandCursor: true })
+        sprite.on('pointerdown', () => useFarmStore.getState().requestCollect(egg.id))
         this.eggSprites.set(egg.id, sprite)
       }
 
       const spoilRatio = egg.ageTimerSec / FARM_LEVEL1.eggSpoilTimeSec
-      let eggColor: number
-      let eggAlpha = 1
       if (egg.collecting) {
-        eggColor = COLORS.eggCollecting
+        sprite.setTint(0xffd54f).setAlpha(1)
       } else if (spoilRatio >= 0.8) {
-        eggColor = 0xe53935
-        eggAlpha = 0.35 + 0.65 * Math.abs(Math.sin(this.time.now / 160))
+        sprite.setTint(0xe53935).setAlpha(0.35 + 0.65 * Math.abs(Math.sin(this.time.now / 160)))
       } else if (spoilRatio >= 0.5) {
-        eggColor = 0xff8f00
+        sprite.setTint(0xff8f00).setAlpha(1)
       } else {
-        eggColor = COLORS.egg
+        sprite.clearTint().setAlpha(1)
       }
-      sprite.setColor(eggColor)
-      sprite.setAlpha(eggAlpha)
     }
   }
 
