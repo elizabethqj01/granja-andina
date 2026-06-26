@@ -13,7 +13,7 @@ export const FARM_LEVEL1 = {
 
   // ── Economy (developer-proposed, tunable) ──────────────────────────────────
   initialCash: 190,
-  cornUnitCost: 20,
+  cornUnitCost: 4,
   cornPerRecharge: 5, // batch of 5 corn per warehouse click
   eggSellPrice: 10,
 

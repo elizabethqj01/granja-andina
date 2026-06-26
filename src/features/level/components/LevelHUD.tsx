@@ -1,6 +1,30 @@
+import { useState, useEffect } from 'react'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import coinUrl from '@/assets/sprites/coin.png'
+
+function CoinSprite({ size = 24 }: { size?: number }) {
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % 9), 1000 / 8)
+    return () => clearInterval(id)
+  }, [])
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        backgroundImage: `url(${coinUrl})`,
+        backgroundSize: `${size * 9}px ${size}px`,
+        backgroundPosition: `-${frame * size}px 0`,
+        imageRendering: 'pixelated',
+        flexShrink: 0,
+      }}
+    />
+  )
+}
 
 function formatTime(totalSec: number): string {
   const m = Math.floor(totalSec / 60)
@@ -55,7 +79,9 @@ export function LevelHUD() {
           {'★'.repeat(pace.stars)}
           {'☆'.repeat(3 - pace.stars)} ritmo ({pace.label})
         </span>
-        <span className="font-mono text-sm text-amber-300">💰 ${cash.toLocaleString('es-CO')}</span>
+        <span className="flex items-center gap-1 font-mono text-sm text-amber-300">
+          <CoinSprite size={22} />${cash.toLocaleString('es-CO')}
+        </span>
         <span className="font-mono text-sm text-white">
           🥚 {collected}/{FARM_LEVEL1.objectiveEggs} recolectados
         </span>

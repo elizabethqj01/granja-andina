@@ -415,6 +415,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
     rechargeCorn: () => {
       const s = get()
       if (s.levelComplete) return
+      if (s.cornStock > 0) return
       const cost = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
       if (s.cash < cost) {
         flash('¡Sin fondos! Vende los huevos primero.')

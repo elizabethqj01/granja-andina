@@ -15,6 +15,7 @@ import butterflyUrl from '@/assets/sprites/butterfly_sheet.png'
 import backgroundUrl from '@/assets/sprites/background.jpg'
 import cornWarehouseUrl from '@/assets/sprites/corn_warehouse.png'
 import cornStockBadgeUrl from '@/assets/sprites/corn_stock_badge.png'
+import coinUrl from '@/assets/sprites/coin.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
@@ -66,6 +67,8 @@ export class FarmScene extends Phaser.Scene {
   private truck!: FarmEntity
   private cornWarehouseSprite!: Phaser.GameObjects.Sprite
   private cornStockBadge!: Phaser.GameObjects.Sprite
+  private cornPriceCoin!: Phaser.GameObjects.Sprite
+  private cornPriceText!: Phaser.GameObjects.Text
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
   private chickenShop!: FarmEntity
@@ -112,6 +115,7 @@ export class FarmScene extends Phaser.Scene {
       frameWidth: 64,
       frameHeight: 64,
     })
+    this.load.spritesheet('coin', coinUrl, { frameWidth: 64, frameHeight: 64 })
   }
 
   create(): void {
@@ -155,6 +159,12 @@ export class FarmScene extends Phaser.Scene {
       key: 'corn_idle',
       frames: this.anims.generateFrameNumbers('corn_scatter', { start: 4, end: 5 }),
       frameRate: 2,
+      repeat: -1,
+    })
+    this.anims.create({
+      key: 'coin_spin',
+      frames: this.anims.generateFrameNumbers('coin', { start: 0, end: 7 }),
+      frameRate: 8,
       repeat: -1,
     })
 
@@ -251,11 +261,11 @@ export class FarmScene extends Phaser.Scene {
     })
     this.truck.setDepth(60)
 
-    // Corn warehouse — top-center
+    // Corn warehouse — left side near the farm grid
     this.cornWarehouseSprite = this.add
-      .sprite(width / 2, height * 0.075, 'corn_warehouse', 0)
+      .sprite(width * 0.25, height * 0.25, 'corn_warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(0.35)
+      .setScale(0.75)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.cornWarehouseSprite.on('pointerdown', () => {
@@ -265,10 +275,32 @@ export class FarmScene extends Phaser.Scene {
     })
 
     this.cornStockBadge = this.add
-      .sprite(width / 2 + 72, height * 0.075, 'corn_stock_badge', 0)
+      .sprite(width * 0.25 + 105, height * 0.25, 'corn_stock_badge', 0)
       .setOrigin(0.5, 0.5)
       .setScale(1.2)
       .setDepth(32)
+
+    // Corn price — coin + text to the LEFT of the warehouse barn (visible only when store is open)
+    const cornBatchPrice = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
+    this.cornPriceCoin = this.add
+      .sprite(width * 0.25 - 26, height * 0.25 - 90, 'coin', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(0.55)
+      .setDepth(33)
+      .setVisible(false)
+    this.cornPriceCoin.play('coin_spin')
+    this.cornPriceText = this.add
+      .text(width * 0.25 - 8, height * 0.25 - 90, `$${cornBatchPrice}`, {
+        fontSize: '28px',
+        color: '#FFD700',
+        fontFamily: 'monospace',
+        fontStyle: 'bold',
+        stroke: '#000000',
+        strokeThickness: 4,
+      })
+      .setOrigin(0, 0.5)
+      .setDepth(33)
+      .setVisible(false)
 
     // Chicken shop — top-left
     this.chickenShop = new FarmEntity(this, width * 0.11, height * 0.09, {
@@ -325,6 +357,10 @@ export class FarmScene extends Phaser.Scene {
 
     const cornStock = farm.cornStock
     this.cornStockBadge.setFrame(Math.min(5, cornStock))
+    const storeOpen = cornStock === 0
+    this.cornWarehouseSprite.setAlpha(storeOpen ? 1 : 0.45)
+    this.cornPriceCoin.setVisible(storeOpen)
+    this.cornPriceText.setVisible(storeOpen)
 
     const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
     this.eggWarehouse.setLabel(
@@ -610,17 +646,10 @@ export class FarmScene extends Phaser.Scene {
     this.decorationSprites = []
 
     // Place decorations just outside the grid boundary (not on walkable tiles)
-    const leftMid = this.iso.toScreen(0, Math.floor(FARM_GRID.rows / 2))
     const rightMid = this.iso.toScreen(FARM_GRID.cols - 1, Math.floor(FARM_GRID.rows / 2))
-    const bottom = this.iso.toScreen(Math.floor(FARM_GRID.cols / 2), FARM_GRID.rows - 1)
 
     const spots = [
-      { x: leftMid.x - 80, y: leftMid.y - 20, frame: 0 }, // hay bale — left
-      { x: leftMid.x - 80, y: leftMid.y + 40, frame: 1 }, // bush — left lower
-      { x: rightMid.x + 80, y: rightMid.y - 20, frame: 2 }, // bucket — right
       { x: rightMid.x + 80, y: rightMid.y + 40, frame: 3 }, // well — right lower
-      { x: bottom.x - 60, y: bottom.y + 30, frame: 1 }, // bush — bottom-left
-      { x: bottom.x + 60, y: bottom.y + 30, frame: 0 }, // hay — bottom-right
     ]
 
     for (const s of spots) {
@@ -817,8 +846,10 @@ export class FarmScene extends Phaser.Scene {
     this.tileZones = []
     this.createTileZones()
 
-    this.cornWarehouseSprite.setPosition(width / 2, height * 0.075)
-    this.cornStockBadge.setPosition(width / 2 + 72, height * 0.075)
+    this.cornWarehouseSprite.setPosition(width * 0.25, height * 0.25)
+    this.cornStockBadge.setPosition(width * 0.25 + 105, height * 0.25)
+    this.cornPriceCoin.setPosition(width * 0.25 - 26, height * 0.25 - 90)
+    this.cornPriceText.setPosition(width * 0.25 - 8, height * 0.25 - 90)
     this.chickenShop.setPosition(width * 0.11, height * 0.09)
     this.eggWarehouse.setPosition(width * 0.86, height * 0.88)
     this.cart.setPosition(width * 0.13, height * 0.88)
