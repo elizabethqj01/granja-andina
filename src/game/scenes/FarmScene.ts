@@ -173,7 +173,7 @@ export class FarmScene extends Phaser.Scene {
         end: CHICKEN_ANIM.eat.end,
       }),
       frameRate: CHICKEN_ANIM.eat.rate,
-      repeat: 0,
+      repeat: -1,
     })
     this.anims.create({
       key: 'chicken_lay',
@@ -309,7 +309,7 @@ export class FarmScene extends Phaser.Scene {
     const farm = useFarmStore.getState()
 
     this.reconcileChickens(farm.chickens, farm.placedCorn.length)
-    this.reconcilePlacedCorn(farm.placedCorn)
+    this.reconcilePlacedCorn(farm.placedCorn, farm.chickens)
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
 
@@ -391,6 +391,7 @@ export class FarmScene extends Phaser.Scene {
       const currentAnim = sprite.anims.currentAnim?.key
       let desiredAnim: string
       if (chicken.state === 'laying') desiredAnim = 'chicken_lay'
+      else if (chicken.state === 'eating') desiredAnim = 'chicken_eat'
       else if (chicken.state === 'seeking') desiredAnim = 'chicken_walk'
       else desiredAnim = isMoving ? 'chicken_walk' : 'chicken_idle'
       if (currentAnim !== desiredAnim) sprite.play(desiredAnim)
@@ -671,7 +672,15 @@ export class FarmScene extends Phaser.Scene {
 
   // ── Entity reconcilers ─────────────────────────────────────────────────────
 
-  private reconcilePlacedCorn(corns: PlacedCorn[]): void {
+  private reconcilePlacedCorn(corns: PlacedCorn[], chickens: Chicken[]): void {
+    // Build eat-progress map: cornId → 0..1
+    const eatProgress = new Map<string, number>()
+    for (const c of chickens) {
+      if (c.state === 'eating' && c.targetCornId) {
+        eatProgress.set(c.targetCornId, c.eatTimerSec / FARM_LEVEL1.cornEatDurationSec)
+      }
+    }
+
     const liveIds = new Set(corns.map((c) => c.id))
     for (const [id, sprite] of this.placedCornSprites) {
       if (!liveIds.has(id)) {
@@ -682,7 +691,6 @@ export class FarmScene extends Phaser.Scene {
     for (const corn of corns) {
       if (!this.placedCornSprites.has(corn.id)) {
         const pos = this.iso.toScreen(corn.col, corn.row)
-        // Scale 0.5 renders 192×96 frame as 96×48 — exactly one isometric tile
         const sprite = this.add
           .sprite(pos.x, pos.y, 'corn_scatter')
           .setOrigin(0.5, 0.5)
@@ -692,6 +700,12 @@ export class FarmScene extends Phaser.Scene {
         sprite.once('animationcomplete', () => sprite.play('corn_idle'))
         this.placedCornSprites.set(corn.id, sprite)
       }
+
+      // Shrink corn progressively as chicken eats it
+      const progress = eatProgress.get(corn.id) ?? 0
+      const sprite = this.placedCornSprites.get(corn.id)!
+      sprite.setScale(0.5 * (1 - progress * 0.85))
+      sprite.setAlpha(1 - progress * 0.5)
     }
   }
 

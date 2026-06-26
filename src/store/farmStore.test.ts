@@ -15,6 +15,7 @@ const defaultChicken = {
   state: 'wandering' as ChickenState,
   targetCornId: null,
   layTimerSec: 0,
+  eatTimerSec: 0,
   wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
   energy: FARM_LEVEL1.chickenMaxEnergy,
 }
@@ -102,7 +103,7 @@ describe('advanceFarm', () => {
     expect(next.chickens[0].targetCornId).toBe('corn-1')
   })
 
-  it('should_eatCornAndRestoreEnergy_when_seekingAndOnCornTile', () => {
+  it('should_startEating_when_seekingAndOnCornTile', () => {
     const state = baseState({
       chickens: [
         { ...defaultChicken, col: 2, row: 2, state: 'seeking', targetCornId: 'corn-1', energy: 1 },
@@ -110,11 +111,32 @@ describe('advanceFarm', () => {
       placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
     })
     const next = advanceFarm(state)
-    // Corn eaten, energy restored, back to wandering (not laying directly)
-    expect(next.chickens[0].state).toBe('wandering')
-    expect(next.placedCorn).toHaveLength(0)
-    expect(next.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
-    expect(next.chickens[0].energy).toBeGreaterThan(1)
+    // Chicken enters eating state — corn stays until duration completes
+    expect(next.chickens[0].state).toBe('eating')
+    expect(next.placedCorn).toHaveLength(1)
+    expect(next.chickens[0].eatTimerSec).toBe(0)
+  })
+
+  it('should_removeCornAndRestoreEnergy_when_eatTimerCompletes', () => {
+    let state = baseState({
+      chickens: [
+        {
+          ...defaultChicken,
+          col: 2,
+          row: 2,
+          state: 'eating',
+          targetCornId: 'corn-1',
+          energy: 1,
+          eatTimerSec: 0,
+        },
+      ],
+      placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
+    })
+    for (let i = 0; i < FARM_LEVEL1.cornEatDurationSec; i++) state = advanceFarm(state)
+    expect(state.chickens[0].state).toBe('wandering')
+    expect(state.placedCorn).toHaveLength(0)
+    expect(state.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
+    expect(state.chickens[0].energy).toBeGreaterThan(1)
   })
 
   it('should_layEggAtChickenPosition_when_layAnimTimerElapses', () => {

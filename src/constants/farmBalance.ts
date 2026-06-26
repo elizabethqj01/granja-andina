@@ -40,6 +40,7 @@ export const FARM_LEVEL1 = {
   chickenEnergyDrainPerSec: 0.15, // drains to 0 in ~46 s
   chickenCornEnergyRestore: 5, // energy restored per corn eaten (capped at max)
   eggLayAnimSec: 2, // how long the laying animation lasts before egg drops
+  cornEatDurationSec: 3, // how long a chicken takes to eat corn (progressive)
 } as const
 
 export type FarmLevelConfig = typeof FARM_LEVEL1

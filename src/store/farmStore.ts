@@ -4,7 +4,7 @@ import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
-export type ChickenState = 'wandering' | 'seeking' | 'laying'
+export type ChickenState = 'wandering' | 'seeking' | 'eating' | 'laying'
 
 export interface PlacedCorn {
   id: string
@@ -19,6 +19,7 @@ export interface Chicken {
   state: ChickenState
   targetCornId: string | null
   layTimerSec: number // counts up in wandering (production timer) and laying (anim timer)
+  eatTimerSec: number // counts up in eating state; resets when done
   wanderCooldownSec: number
   energy: number // 0..chickenMaxEnergy; drains over time, restored by eating corn
 }
@@ -170,6 +171,7 @@ function initialFarmState(): FarmState {
     state: 'wandering' as ChickenState,
     targetCornId: null,
     layTimerSec: 0,
+    eatTimerSec: 0,
     wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
     energy: FARM_LEVEL1.chickenMaxEnergy,
   }))
@@ -241,22 +243,30 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         chicken.state = 'wandering'
         chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
       }
+    } else if (chicken.state === 'eating') {
+      // Progressive eating: restore energy gradually, remove corn when done
+      chicken.eatTimerSec += 1
+      chicken.energy = Math.min(
+        cfg.chickenMaxEnergy,
+        chicken.energy + cfg.chickenCornEnergyRestore / cfg.cornEatDurationSec
+      )
+      if (chicken.eatTimerSec >= cfg.cornEatDurationSec) {
+        next.placedCorn = next.placedCorn.filter((c) => c.id !== chicken.targetCornId)
+        next.cornConsumedValue += cfg.cornUnitCost
+        chicken.state = 'wandering'
+        chicken.targetCornId = null
+        chicken.eatTimerSec = 0
+        chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+      }
     } else if (chicken.state === 'seeking') {
       const corn = next.placedCorn.find((c) => c.id === chicken.targetCornId)
       if (!corn) {
         chicken.state = 'wandering'
         chicken.targetCornId = null
       } else if (chicken.col === corn.col && chicken.row === corn.row) {
-        // Reached corn: eat it, restore energy, back to wandering
-        next.placedCorn = next.placedCorn.filter((c) => c.id !== corn.id)
-        next.cornConsumedValue += cfg.cornUnitCost
-        chicken.energy = Math.min(
-          cfg.chickenMaxEnergy,
-          chicken.energy + cfg.chickenCornEnergyRestore
-        )
-        chicken.state = 'wandering'
-        chicken.targetCornId = null
-        chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+        // Reached corn tile: start eating progressively
+        chicken.state = 'eating'
+        chicken.eatTimerSec = 0
       } else {
         const step = stepToward(
           { col: chicken.col, row: chicken.row },
@@ -484,6 +494,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             state: 'wandering' as ChickenState,
             targetCornId: null,
             layTimerSec: 0,
+            eatTimerSec: 0,
             wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
             energy: FARM_LEVEL1.chickenMaxEnergy,
           },
