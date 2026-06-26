@@ -227,6 +227,7 @@ export class FarmScene extends Phaser.Scene {
     this.farmerHome.set(width / 2, height * 0.82)
     this.farmer = this.add
       .sprite(this.farmerHome.x, this.farmerHome.y, 'farmer')
+      .setOrigin(0.5, 0.75)
       .setScale(FARMER_SCALE)
       .setDepth(50)
     this.farmer.play('farmer_idle')
@@ -352,7 +353,11 @@ export class FarmScene extends Phaser.Scene {
       if (!this.chickenSprites.has(chicken.id)) {
         const pos = this.iso.toScreen(chicken.col, chicken.row)
 
-        const sprite = this.add.sprite(pos.x, pos.y, 'chicken').setScale(CHICKEN_SCALE).setDepth(15)
+        const sprite = this.add
+          .sprite(pos.x, pos.y, 'chicken')
+          .setOrigin(0.5, 0.75)
+          .setScale(CHICKEN_SCALE)
+          .setDepth(15)
         sprite.play('chicken_idle')
         this.chickenSprites.set(chicken.id, sprite)
 
