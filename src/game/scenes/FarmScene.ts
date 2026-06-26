@@ -13,6 +13,8 @@ import fenceUrl from '@/assets/sprites/fence_sheet.png'
 import decorationsUrl from '@/assets/sprites/decorations_sheet.png'
 import butterflyUrl from '@/assets/sprites/butterfly_sheet.png'
 import backgroundUrl from '@/assets/sprites/background.jpg'
+import cornWarehouseUrl from '@/assets/sprites/corn_warehouse.png'
+import cornStockBadgeUrl from '@/assets/sprites/corn_stock_badge.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
@@ -56,16 +58,14 @@ const COLORS = {
   chickenShop: 0xc8e6c9,
 }
 
-const CORN_BATCH_PRICE = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
-
 export class FarmScene extends Phaser.Scene {
   private iso!: IsoGrid
   private farmer!: Phaser.GameObjects.Sprite
   private farmerCarrying = false
   private farmerPrevState: 'idle' | 'working' = 'idle'
   private truck!: FarmEntity
-  private cornWarehouse!: FarmEntity
-  private cornStockText!: Phaser.GameObjects.Text
+  private cornWarehouseSprite!: Phaser.GameObjects.Sprite
+  private cornStockBadge!: Phaser.GameObjects.Sprite
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
   private chickenShop!: FarmEntity
@@ -107,6 +107,11 @@ export class FarmScene extends Phaser.Scene {
     this.load.spritesheet('decorations', decorationsUrl, { frameWidth: 96, frameHeight: 128 })
     this.load.spritesheet('butterfly', butterflyUrl, { frameWidth: 32, frameHeight: 32 })
     this.load.image('background', backgroundUrl)
+    this.load.spritesheet('corn_warehouse', cornWarehouseUrl, { frameWidth: 256, frameHeight: 256 })
+    this.load.spritesheet('corn_stock_badge', cornStockBadgeUrl, {
+      frameWidth: 64,
+      frameHeight: 64,
+    })
   }
 
   create(): void {
@@ -247,25 +252,23 @@ export class FarmScene extends Phaser.Scene {
     this.truck.setDepth(60)
 
     // Corn warehouse — top-center
-    this.cornWarehouse = new FarmEntity(this, width / 2, height * 0.09, {
-      icon: '🌽',
-      label: `Comprar maíz ×${FARM_LEVEL1.cornPerRecharge}  $${CORN_BATCH_PRICE}`,
-      color: COLORS.corn,
-      size: SZ.cornWarehouse,
-      interactive: true,
-    }).onClick(() => useFarmStore.getState().rechargeCorn())
-
-    this.cornStockText = this.add
-      .text(width / 2 + 74, height * 0.09, '🌽 ×0', {
-        fontSize: '16px',
-        color: '#fdd835',
-        fontFamily: 'monospace',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
-      .setOrigin(0, 0.5)
+    this.cornWarehouseSprite = this.add
+      .sprite(width / 2, height * 0.075, 'corn_warehouse', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(0.35)
       .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+    this.cornWarehouseSprite.on('pointerdown', () => {
+      useFarmStore.getState().rechargeCorn()
+      this.cornWarehouseSprite.setFrame(1)
+      this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
+    })
+
+    this.cornStockBadge = this.add
+      .sprite(width / 2 + 72, height * 0.075, 'corn_stock_badge', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(1.2)
+      .setDepth(32)
 
     // Chicken shop — top-left
     this.chickenShop = new FarmEntity(this, width * 0.11, height * 0.09, {
@@ -321,8 +324,7 @@ export class FarmScene extends Phaser.Scene {
     this.moveFarmer(farm)
 
     const cornStock = farm.cornStock
-    this.cornStockText.setText(`🌽 ×${cornStock}`)
-    this.cornStockText.setColor(cornStock > 0 ? '#fdd835' : '#ffffff66')
+    this.cornStockBadge.setFrame(Math.min(5, cornStock))
 
     const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
     this.eggWarehouse.setLabel(
@@ -815,8 +817,8 @@ export class FarmScene extends Phaser.Scene {
     this.tileZones = []
     this.createTileZones()
 
-    this.cornWarehouse.setPosition(width / 2, height * 0.09)
-    this.cornStockText.setPosition(width / 2 + 74, height * 0.09)
+    this.cornWarehouseSprite.setPosition(width / 2, height * 0.075)
+    this.cornStockBadge.setPosition(width / 2 + 72, height * 0.075)
     this.chickenShop.setPosition(width * 0.11, height * 0.09)
     this.eggWarehouse.setPosition(width * 0.86, height * 0.88)
     this.cart.setPosition(width * 0.13, height * 0.88)
