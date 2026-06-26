@@ -7,7 +7,7 @@ import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
 import farmerSheetUrl from '@/assets/sprites/farmer_sheet.png'
 import eggUrl from '@/assets/sprites/egg.png'
-import cornUrl from '@/assets/sprites/corn.png'
+import cornScatterUrl from '@/assets/sprites/corn_scatter.png'
 import terrainUrl from '@/assets/sprites/terrain_tiles.png'
 import fenceUrl from '@/assets/sprites/fence_sheet.png'
 import decorationsUrl from '@/assets/sprites/decorations_sheet.png'
@@ -82,7 +82,7 @@ export class FarmScene extends Phaser.Scene {
   private chickenHungerAlerts = new Map<string, Phaser.GameObjects.Text>()
 
   private eggSprites = new Map<string, Phaser.GameObjects.Image>()
-  private placedCornSprites = new Map<string, Phaser.GameObjects.Image>()
+  private placedCornSprites = new Map<string, Phaser.GameObjects.Sprite>()
   private tileZones: Phaser.GameObjects.Zone[] = []
   private farmerHome = new Phaser.Math.Vector2()
   private truckAnimating = false
@@ -101,7 +101,7 @@ export class FarmScene extends Phaser.Scene {
       frameHeight: 128,
     })
     this.load.image('egg', eggUrl)
-    this.load.image('corn', cornUrl)
+    this.load.spritesheet('corn_scatter', cornScatterUrl, { frameWidth: 192, frameHeight: 96 })
     this.load.spritesheet('terrain', terrainUrl, { frameWidth: 96, frameHeight: 48 })
     this.load.spritesheet('fence', fenceUrl, { frameWidth: 96, frameHeight: 128 })
     this.load.spritesheet('decorations', decorationsUrl, { frameWidth: 96, frameHeight: 128 })
@@ -132,6 +132,20 @@ export class FarmScene extends Phaser.Scene {
       repeat: -1,
     })
     this.createButterflies()
+
+    // Corn scatter animations
+    this.anims.create({
+      key: 'corn_scatter',
+      frames: this.anims.generateFrameNumbers('corn_scatter', { start: 0, end: 4 }),
+      frameRate: 10,
+      repeat: 0,
+    })
+    this.anims.create({
+      key: 'corn_idle',
+      frames: this.anims.generateFrameNumbers('corn_scatter', { start: 4, end: 5 }),
+      frameRate: 2,
+      repeat: -1,
+    })
 
     // Register chicken animations
     this.anims.create({
@@ -668,11 +682,14 @@ export class FarmScene extends Phaser.Scene {
     for (const corn of corns) {
       if (!this.placedCornSprites.has(corn.id)) {
         const pos = this.iso.toScreen(corn.col, corn.row)
+        // Scale 0.5 renders 192×96 frame as 96×48 — exactly one isometric tile
         const sprite = this.add
-          .image(pos.x, pos.y, 'corn')
-          .setOrigin(0.5, 0.85)
-          .setScale(SZ.corn / 64)
+          .sprite(pos.x, pos.y, 'corn_scatter')
+          .setOrigin(0.5, 0.5)
+          .setScale(0.5)
           .setDepth(8)
+        sprite.play('corn_scatter')
+        sprite.once('animationcomplete', () => sprite.play('corn_idle'))
         this.placedCornSprites.set(corn.id, sprite)
       }
     }
