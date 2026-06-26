@@ -520,6 +520,15 @@ export class FarmScene extends Phaser.Scene {
     '4,7': 0,
     '3,11': 0,
     '4,10': 0,
+    '10,11': 6,
+    '10,10': 6,
+    '11,10': 6,
+    '11,11': 6,
+    '8,11': 7,
+    '8,10': 7,
+    '9,10': 7,
+    '9,11': 7,
+    '9,9': 7,
   }
 
   private placeTileSprites(): void {
@@ -529,7 +538,7 @@ export class FarmScene extends Phaser.Scene {
       for (let col = 0; col < FARM_GRID.cols; col++) {
         const pos = this.iso.toScreen(col, row)
         const key = `${col},${row}`
-        const frame = FarmScene.TILE_VARIANTS[key] ?? 7
+        const frame = FarmScene.TILE_VARIANTS[key] ?? 3
         const img = this.add.image(pos.x, pos.y, 'terrain', frame).setOrigin(0.5, 0.5).setDepth(-1)
         this.tileSprites.push(img)
       }
@@ -592,11 +601,17 @@ export class FarmScene extends Phaser.Scene {
   private createButterflies(): void {
     this.butterflies.forEach((b) => b.destroy())
     this.butterflies = []
-    const mid = this.iso.toScreen(FARM_GRID.cols / 2, FARM_GRID.rows / 2)
 
-    // Two butterflies with different orbit phases
-    for (let i = 0; i < 2; i++) {
-      const b = this.add.sprite(mid.x, mid.y, 'butterfly').setScale(1.4).setDepth(25).setAlpha(0.9)
+    // One near the left edge, one near the right edge
+    const leftBase = this.iso.toScreen(0, Math.floor(FARM_GRID.rows / 2))
+    const rightBase = this.iso.toScreen(FARM_GRID.cols - 1, Math.floor(FARM_GRID.rows / 2))
+
+    for (const base of [leftBase, rightBase]) {
+      const b = this.add
+        .sprite(base.x, base.y, 'butterfly')
+        .setScale(0.7)
+        .setDepth(25)
+        .setAlpha(0.85)
       b.play('butterfly_fly')
       this.butterflies.push(b)
     }
@@ -604,13 +619,16 @@ export class FarmScene extends Phaser.Scene {
 
   private updateButterflies(): void {
     this.butterflyTime += 0.012
-    const mid = this.iso.toScreen(FARM_GRID.cols / 2, FARM_GRID.rows / 2)
+    const leftBase = this.iso.toScreen(0, Math.floor(FARM_GRID.rows / 2))
+    const rightBase = this.iso.toScreen(FARM_GRID.cols - 1, Math.floor(FARM_GRID.rows / 2))
+    const bases = [leftBase, rightBase]
     const phases = [0, Math.PI]
 
     for (let i = 0; i < this.butterflies.length; i++) {
       const t = this.butterflyTime + phases[i]
-      const bx = mid.x + 120 * Math.sin(t)
-      const by = mid.y + 40 * Math.sin(t * 2) - 30
+      const base = bases[i]
+      const bx = base.x + 30 * Math.sin(t)
+      const by = base.y + 15 * Math.sin(t * 2) - 20
       const b = this.butterflies[i]
       if (b.x - bx > 1) b.setFlipX(true)
       if (bx - b.x > 1) b.setFlipX(false)
