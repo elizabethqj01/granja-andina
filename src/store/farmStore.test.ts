@@ -83,11 +83,18 @@ describe('advanceFarm', () => {
     expect(next.chickens[0].state).toBe('laying')
   })
 
+  const corn1 = () => ({
+    id: 'corn-1',
+    col: 1,
+    row: 1,
+    remainingEnergy: FARM_LEVEL1.chickenCornEnergyRestore,
+  })
+  const corn1At = (col: number, row: number) => ({ ...corn1(), col, row })
+
   it('should_notSeekCorn_when_energyAboveThreshold', () => {
-    // Full-energy chicken ignores corn — only hungry chickens seek it
     const state = baseState({
       chickens: [{ ...defaultChicken, energy: FARM_LEVEL1.chickenMaxEnergy }],
-      placedCorn: [{ id: 'corn-1', col: 1, row: 1 }],
+      placedCorn: [corn1()],
     })
     const next = advanceFarm(state)
     expect(next.chickens[0].state).toBe('wandering')
@@ -96,7 +103,7 @@ describe('advanceFarm', () => {
   it('should_seekCorn_when_energyBelowThreshold', () => {
     const state = baseState({
       chickens: [{ ...defaultChicken, energy: FARM_LEVEL1.chickenHungerThreshold }],
-      placedCorn: [{ id: 'corn-1', col: 1, row: 1 }],
+      placedCorn: [corn1()],
     })
     const next = advanceFarm(state)
     expect(next.chickens[0].state).toBe('seeking')
@@ -108,16 +115,40 @@ describe('advanceFarm', () => {
       chickens: [
         { ...defaultChicken, col: 2, row: 2, state: 'seeking', targetCornId: 'corn-1', energy: 1 },
       ],
-      placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
+      placedCorn: [corn1At(2, 2)],
     })
     const next = advanceFarm(state)
-    // Chicken enters eating state — corn stays until duration completes
     expect(next.chickens[0].state).toBe('eating')
     expect(next.placedCorn).toHaveLength(1)
-    expect(next.chickens[0].eatTimerSec).toBe(0)
   })
 
-  it('should_removeCornAndRestoreEnergy_when_eatTimerCompletes', () => {
+  it('should_leaveCornAndWander_when_chickenFull', () => {
+    // Chicken with enough hunger to eat one bite then fill up — corn must persist
+    const state = baseState({
+      chickens: [
+        {
+          ...defaultChicken,
+          col: 2,
+          row: 2,
+          state: 'eating',
+          targetCornId: 'corn-1',
+          energy: FARM_LEVEL1.chickenMaxEnergy - 1, // only 1 point away from full
+          eatTimerSec: 0,
+        },
+      ],
+      placedCorn: [corn1At(2, 2)],
+    })
+    const next = advanceFarm(state)
+    expect(next.chickens[0].state).toBe('wandering')
+    expect(next.chickens[0].energy).toBe(FARM_LEVEL1.chickenMaxEnergy)
+    // Corn must still be there with reduced energy
+    expect(next.placedCorn).toHaveLength(1)
+    expect(next.placedCorn[0].remainingEnergy).toBeLessThan(FARM_LEVEL1.chickenCornEnergyRestore)
+  })
+
+  it('should_removeCorn_when_remainingEnergyDepleted', () => {
+    // Corn with minimal remaining energy gets depleted in one tick
+    const ratePerTick = FARM_LEVEL1.chickenCornEnergyRestore / FARM_LEVEL1.cornEatDurationSec
     let state = baseState({
       chickens: [
         {
@@ -126,17 +157,16 @@ describe('advanceFarm', () => {
           row: 2,
           state: 'eating',
           targetCornId: 'corn-1',
-          energy: 1,
+          energy: 0,
           eatTimerSec: 0,
         },
       ],
-      placedCorn: [{ id: 'corn-1', col: 2, row: 2 }],
+      placedCorn: [{ ...corn1At(2, 2), remainingEnergy: ratePerTick / 2 }],
     })
-    for (let i = 0; i < FARM_LEVEL1.cornEatDurationSec; i++) state = advanceFarm(state)
+    state = advanceFarm(state)
     expect(state.chickens[0].state).toBe('wandering')
     expect(state.placedCorn).toHaveLength(0)
     expect(state.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
-    expect(state.chickens[0].energy).toBeGreaterThan(1)
   })
 
   it('should_layEggAtChickenPosition_when_layAnimTimerElapses', () => {
@@ -340,29 +370,29 @@ describe('useFarmStore actions', () => {
     expect(s.eggsSold).toBe(3)
     expect(s.saleState).toBe('in-transit')
     expect(s.pendingSaleIncome).toBe(3 * FARM_LEVEL1.eggSellPrice)
-    expect(s.cash).toBe(1_000) // cash not added yet — truck hasn't returned
+    expect(s.cash).toBe(FARM_LEVEL1.initialCash) // cash not added yet — truck hasn't returned
   })
 
   it('should_addIncomeAndResetSale_when_completeSale', () => {
     useFarmStore.setState({ saleState: 'in-transit', pendingSaleIncome: 400 })
     useFarmStore.getState().completeSale()
     const s = useFarmStore.getState()
-    expect(s.cash).toBe(1_000 + 400)
+    expect(s.cash).toBe(FARM_LEVEL1.initialCash + 400)
     expect(s.revenue).toBe(400)
     expect(s.saleState).toBe('idle')
     expect(s.pendingSaleIncome).toBe(0)
   })
 
   it('should_addChicken_when_buyChicken', () => {
-    useFarmStore.setState({ cash: 1_000 })
+    useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice * 2 })
     useFarmStore.getState().buyChicken()
     const s = useFarmStore.getState()
     expect(s.chickens).toHaveLength(2)
-    expect(s.cash).toBe(1_000 - FARM_LEVEL1.chickenBuyPrice)
+    expect(s.cash).toBe(FARM_LEVEL1.chickenBuyPrice)
   })
 
   it('should_notBuyChicken_when_insufficientFunds', () => {
-    useFarmStore.setState({ cash: 100 })
+    useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice - 1 })
     useFarmStore.getState().buyChicken()
     expect(useFarmStore.getState().chickens).toHaveLength(1)
   })

@@ -10,6 +10,7 @@ export interface PlacedCorn {
   id: string
   col: number
   row: number
+  remainingEnergy: number // starts at chickenCornEnergyRestore; depleted across multiple chickens
 }
 
 export interface Chicken {
@@ -210,7 +211,7 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
     elapsedSec: state.elapsedSec + 1,
     chickens: state.chickens.map((c) => ({ ...c })),
     groundEggs: state.groundEggs.map((e) => ({ ...e })),
-    placedCorn: [...state.placedCorn],
+    placedCorn: state.placedCorn.map((c) => ({ ...c })),
     farmer: { ...state.farmer },
   }
 
@@ -244,19 +245,36 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
       }
     } else if (chicken.state === 'eating') {
-      // Progressive eating: restore energy gradually, remove corn when done
-      chicken.eatTimerSec += 1
-      chicken.energy = Math.min(
-        cfg.chickenMaxEnergy,
-        chicken.energy + cfg.chickenCornEnergyRestore / cfg.cornEatDurationSec
-      )
-      if (chicken.eatTimerSec >= cfg.cornEatDurationSec) {
-        next.placedCorn = next.placedCorn.filter((c) => c.id !== chicken.targetCornId)
-        next.cornConsumedValue += cfg.cornUnitCost
+      const corn = next.placedCorn.find((c) => c.id === chicken.targetCornId)
+      if (!corn) {
+        // Corn was taken by another chicken while eating
         chicken.state = 'wandering'
         chicken.targetCornId = null
         chicken.eatTimerSec = 0
-        chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+      } else {
+        const ratePerTick = cfg.chickenCornEnergyRestore / cfg.cornEatDurationSec
+        const needed = cfg.chickenMaxEnergy - chicken.energy
+        const bite = Math.min(ratePerTick, needed, corn.remainingEnergy)
+
+        chicken.energy += bite
+        corn.remainingEnergy -= bite
+        chicken.eatTimerSec += 1
+
+        if (corn.remainingEnergy <= 0) {
+          // Corn fully depleted — remove and charge cost
+          next.placedCorn = next.placedCorn.filter((c) => c.id !== chicken.targetCornId)
+          next.cornConsumedValue += cfg.cornUnitCost
+          chicken.state = 'wandering'
+          chicken.targetCornId = null
+          chicken.eatTimerSec = 0
+          chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+        } else if (chicken.energy >= cfg.chickenMaxEnergy) {
+          // Chicken is full — leave corn for other chickens
+          chicken.state = 'wandering'
+          chicken.targetCornId = null
+          chicken.eatTimerSec = 0
+          chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
+        }
       }
     } else if (chicken.state === 'seeking') {
       const corn = next.placedCorn.find((c) => c.id === chicken.targetCornId)
@@ -416,7 +434,10 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       if (s.placedCorn.some((c) => c.col === col && c.row === row)) return
       set({
         cornStock: s.cornStock - 1,
-        placedCorn: [...s.placedCorn, { id: nextCornId(), col, row }],
+        placedCorn: [
+          ...s.placedCorn,
+          { id: nextCornId(), col, row, remainingEnergy: FARM_LEVEL1.chickenCornEnergyRestore },
+        ],
       })
     },
 

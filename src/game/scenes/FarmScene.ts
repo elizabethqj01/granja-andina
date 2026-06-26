@@ -12,6 +12,7 @@ import terrainUrl from '@/assets/sprites/terrain_tiles.png'
 import fenceUrl from '@/assets/sprites/fence_sheet.png'
 import decorationsUrl from '@/assets/sprites/decorations_sheet.png'
 import butterflyUrl from '@/assets/sprites/butterfly_sheet.png'
+import backgroundUrl from '@/assets/sprites/background.jpg'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
@@ -26,7 +27,6 @@ const SZ = {
 } as const
 
 // Chicken sprite sheet layout (128×128 px per frame, 6 cols × 4 rows = 768×512)
-const CHICKEN_SCALE = 0.52 // renders ~66px on screen
 const CHICKEN_ANIM = {
   idle: { start: 0, end: 3, rate: 4 },
   walk: { start: 6, end: 11, rate: 8 },
@@ -34,7 +34,6 @@ const CHICKEN_ANIM = {
   lay: { start: 18, end: 22, rate: 5 },
 } as const
 
-const FARMER_SCALE = 0.78
 const FARMER_ANIM = {
   idle: { start: 0, end: 5, rate: 5, repeat: -1 },
   walk: { start: 6, end: 11, rate: 8, repeat: -1 },
@@ -70,6 +69,7 @@ export class FarmScene extends Phaser.Scene {
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
   private chickenShop!: FarmEntity
+  private bgImage!: Phaser.GameObjects.Image
   private tileSprites: Phaser.GameObjects.Image[] = []
   private fenceSprites: Phaser.GameObjects.Image[] = []
   private decorationSprites: Phaser.GameObjects.Image[] = []
@@ -106,15 +106,21 @@ export class FarmScene extends Phaser.Scene {
     this.load.spritesheet('fence', fenceUrl, { frameWidth: 96, frameHeight: 128 })
     this.load.spritesheet('decorations', decorationsUrl, { frameWidth: 96, frameHeight: 128 })
     this.load.spritesheet('butterfly', butterflyUrl, { frameWidth: 32, frameHeight: 32 })
+    this.load.image('background', backgroundUrl)
   }
 
   create(): void {
     const { width, height } = this.scale
-    this.cameras.main.setBackgroundColor(COLORS.bg)
+
+    this.bgImage = this.add
+      .image(0, 0, 'background')
+      .setOrigin(0, 0)
+      .setDisplaySize(width, height)
+      .setDepth(-100)
 
     this.iso = new IsoGrid({
       originX: width / 2,
-      originY: height * 0.18,
+      originY: height * 0.25,
       tileWidth: 96,
       tileHeight: 48,
     })
@@ -227,8 +233,8 @@ export class FarmScene extends Phaser.Scene {
     this.farmerHome.set(width / 2, height * 0.82)
     this.farmer = this.add
       .sprite(this.farmerHome.x, this.farmerHome.y, 'farmer')
-      .setOrigin(0.5, 0.75)
-      .setScale(FARMER_SCALE)
+      .setOrigin(0.5, 0.62)
+      .setScale(FARM_LEVEL1.farmerScale)
       .setDepth(50)
     this.farmer.play('farmer_idle')
 
@@ -356,7 +362,7 @@ export class FarmScene extends Phaser.Scene {
         const sprite = this.add
           .sprite(pos.x, pos.y, 'chicken')
           .setOrigin(0.5, 0.75)
-          .setScale(CHICKEN_SCALE)
+          .setScale(FARM_LEVEL1.chickenScale)
           .setDepth(15)
         sprite.play('chicken_idle')
         this.chickenSprites.set(chicken.id, sprite)
@@ -389,8 +395,8 @@ export class FarmScene extends Phaser.Scene {
       if (Math.abs(dx) > 2) sprite.setFlipX(dx < 0)
 
       // Lerp toward target tile
-      sprite.x += dx * 0.12
-      sprite.y += dy * 0.12
+      sprite.x += dx * FARM_LEVEL1.chickenLerpSpeed
+      sprite.y += dy * FARM_LEVEL1.chickenLerpSpeed
 
       // Animation: wandering uses walk/idle based on actual pixel movement
       const currentAnim = sprite.anims.currentAnim?.key
@@ -425,7 +431,7 @@ export class FarmScene extends Phaser.Scene {
     const w = 54
     const h = 7
     const cx = sprite.x
-    const top = sprite.y - (128 * CHICKEN_SCALE) / 2 - 12
+    const top = sprite.y - (128 * FARM_LEVEL1.chickenScale) / 2 - 12
 
     bar.clear()
     bar.fillStyle(0x000000, 0.45)
@@ -677,15 +683,7 @@ export class FarmScene extends Phaser.Scene {
 
   // ── Entity reconcilers ─────────────────────────────────────────────────────
 
-  private reconcilePlacedCorn(corns: PlacedCorn[], chickens: Chicken[]): void {
-    // Build eat-progress map: cornId → 0..1
-    const eatProgress = new Map<string, number>()
-    for (const c of chickens) {
-      if (c.state === 'eating' && c.targetCornId) {
-        eatProgress.set(c.targetCornId, c.eatTimerSec / FARM_LEVEL1.cornEatDurationSec)
-      }
-    }
-
+  private reconcilePlacedCorn(corns: PlacedCorn[], _chickens: Chicken[]): void {
     const liveIds = new Set(corns.map((c) => c.id))
     for (const [id, sprite] of this.placedCornSprites) {
       if (!liveIds.has(id)) {
@@ -706,11 +704,11 @@ export class FarmScene extends Phaser.Scene {
         this.placedCornSprites.set(corn.id, sprite)
       }
 
-      // Shrink corn progressively as chicken eats it
-      const progress = eatProgress.get(corn.id) ?? 0
+      // Shrink based on remaining energy — reflects real consumption across all chickens
+      const consumed = 1 - corn.remainingEnergy / FARM_LEVEL1.chickenCornEnergyRestore
       const sprite = this.placedCornSprites.get(corn.id)!
-      sprite.setScale(0.5 * (1 - progress * 0.85))
-      sprite.setAlpha(1 - progress * 0.5)
+      sprite.setScale(0.5 * (1 - consumed * 0.85))
+      sprite.setAlpha(1 - consumed * 0.5)
     }
   }
 
@@ -773,9 +771,8 @@ export class FarmScene extends Phaser.Scene {
     // Flip toward movement direction
     if (Math.abs(dx) > 2) this.farmer.setFlipX(dx < 0)
 
-    // Slower lerp so animations are visible
-    this.farmer.x += dx * 0.07
-    this.farmer.y += dy * 0.07
+    this.farmer.x += dx * FARM_LEVEL1.farmerLerpSpeed
+    this.farmer.y += dy * FARM_LEVEL1.farmerLerpSpeed
 
     // Track carrying: set true when store transitions working→idle (egg just collected),
     // clear when farmer physically arrives back home.
@@ -806,7 +803,8 @@ export class FarmScene extends Phaser.Scene {
 
   private relayout(): void {
     const { width, height } = this.scale
-    this.iso.setOrigin(width / 2, height * 0.18)
+    this.bgImage.setDisplaySize(width, height)
+    this.iso.setOrigin(width / 2, height * 0.25)
 
     this.placeTileSprites()
     this.placeFenceSprites()
