@@ -5,6 +5,11 @@ import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
+import farmerSheetUrl from '@/assets/sprites/farmer_sheet.png'
+import terrainUrl from '@/assets/sprites/terrain_tiles.png'
+import fenceUrl from '@/assets/sprites/fence_sheet.png'
+import decorationsUrl from '@/assets/sprites/decorations_sheet.png'
+import butterflyUrl from '@/assets/sprites/butterfly_sheet.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
@@ -27,6 +32,14 @@ const CHICKEN_ANIM = {
   lay: { start: 18, end: 22, rate: 5 },
 } as const
 
+const FARMER_SCALE = 0.78
+const FARMER_ANIM = {
+  idle: { start: 0, end: 5, rate: 5, repeat: -1 },
+  walk: { start: 6, end: 11, rate: 8, repeat: -1 },
+  collect: { start: 12, end: 15, rate: 7, repeat: 0 },
+  carry: { start: 18, end: 23, rate: 8, repeat: -1 },
+} as const
+
 const COLORS = {
   bg: 0x88c057,
   tileA: 0x7cb342,
@@ -46,14 +59,20 @@ const CORN_BATCH_PRICE = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
 
 export class FarmScene extends Phaser.Scene {
   private iso!: IsoGrid
-  private farmer!: FarmEntity
+  private farmer!: Phaser.GameObjects.Sprite
+  private farmerCarrying = false
+  private farmerPrevState: 'idle' | 'working' = 'idle'
   private truck!: FarmEntity
   private cornWarehouse!: FarmEntity
   private cornStockText!: Phaser.GameObjects.Text
   private eggWarehouse!: FarmEntity
   private cart!: FarmEntity
   private chickenShop!: FarmEntity
-  private floor!: Phaser.GameObjects.Graphics
+  private tileSprites: Phaser.GameObjects.Image[] = []
+  private fenceSprites: Phaser.GameObjects.Image[] = []
+  private decorationSprites: Phaser.GameObjects.Image[] = []
+  private butterflies: Phaser.GameObjects.Sprite[] = []
+  private butterflyTime = 0
 
   // Animated chicken sprites
   private chickenSprites = new Map<string, Phaser.GameObjects.Sprite>()
@@ -75,6 +94,14 @@ export class FarmScene extends Phaser.Scene {
       frameWidth: 128,
       frameHeight: 128,
     })
+    this.load.spritesheet('farmer', farmerSheetUrl, {
+      frameWidth: 128,
+      frameHeight: 128,
+    })
+    this.load.spritesheet('terrain', terrainUrl, { frameWidth: 96, frameHeight: 48 })
+    this.load.spritesheet('fence', fenceUrl, { frameWidth: 96, frameHeight: 128 })
+    this.load.spritesheet('decorations', decorationsUrl, { frameWidth: 96, frameHeight: 128 })
+    this.load.spritesheet('butterfly', butterflyUrl, { frameWidth: 32, frameHeight: 32 })
   }
 
   create(): void {
@@ -88,9 +115,19 @@ export class FarmScene extends Phaser.Scene {
       tileHeight: 48,
     })
 
-    this.floor = this.add.graphics().setDepth(-1)
-    this.drawFloor()
+    this.placeTileSprites()
+    this.placeFenceSprites()
+    this.placeDecorations()
     this.createTileZones()
+
+    // Butterfly animation
+    this.anims.create({
+      key: 'butterfly_fly',
+      frames: this.anims.generateFrameNumbers('butterfly', { start: 0, end: 5 }),
+      frameRate: 10,
+      repeat: -1,
+    })
+    this.createButterflies()
 
     // Register chicken animations
     this.anims.create({
@@ -130,15 +167,51 @@ export class FarmScene extends Phaser.Scene {
       repeat: 0,
     })
 
-    // Farmer
-    this.farmerHome.set(width / 2, height * 0.82)
-    this.farmer = new FarmEntity(this, this.farmerHome.x, this.farmerHome.y, {
-      icon: '👨‍🌾',
-      label: 'Granjero',
-      color: COLORS.farmer,
-      size: SZ.farmer,
+    // Farmer animations
+    this.anims.create({
+      key: 'farmer_idle',
+      frames: this.anims.generateFrameNumbers('farmer', {
+        start: FARMER_ANIM.idle.start,
+        end: FARMER_ANIM.idle.end,
+      }),
+      frameRate: FARMER_ANIM.idle.rate,
+      repeat: FARMER_ANIM.idle.repeat,
     })
-    this.farmer.setDepth(50)
+    this.anims.create({
+      key: 'farmer_walk',
+      frames: this.anims.generateFrameNumbers('farmer', {
+        start: FARMER_ANIM.walk.start,
+        end: FARMER_ANIM.walk.end,
+      }),
+      frameRate: FARMER_ANIM.walk.rate,
+      repeat: FARMER_ANIM.walk.repeat,
+    })
+    this.anims.create({
+      key: 'farmer_collect',
+      frames: this.anims.generateFrameNumbers('farmer', {
+        start: FARMER_ANIM.collect.start,
+        end: FARMER_ANIM.collect.end,
+      }),
+      frameRate: FARMER_ANIM.collect.rate,
+      repeat: FARMER_ANIM.collect.repeat,
+    })
+    this.anims.create({
+      key: 'farmer_carry',
+      frames: this.anims.generateFrameNumbers('farmer', {
+        start: FARMER_ANIM.carry.start,
+        end: FARMER_ANIM.carry.end,
+      }),
+      frameRate: FARMER_ANIM.carry.rate,
+      repeat: FARMER_ANIM.carry.repeat,
+    })
+
+    // Farmer sprite
+    this.farmerHome.set(width / 2, height * 0.82)
+    this.farmer = this.add
+      .sprite(this.farmerHome.x, this.farmerHome.y, 'farmer')
+      .setScale(FARMER_SCALE)
+      .setDepth(50)
+    this.farmer.play('farmer_idle')
 
     // Truck — off-screen right until a sale is triggered
     this.truck = new FarmEntity(this, width + 150, height * 0.85, {
@@ -237,6 +310,8 @@ export class FarmScene extends Phaser.Scene {
     if (farm.saleState === 'in-transit' && !this.truckAnimating) {
       this.startTruckAnimation()
     }
+
+    this.updateButterflies()
   }
 
   // ── Chicken visuals ────────────────────────────────────────────────────────
@@ -408,20 +483,139 @@ export class FarmScene extends Phaser.Scene {
 
   // ── Grid floor & zones ─────────────────────────────────────────────────────
 
-  private drawFloor(): void {
-    this.floor.clear()
+  // Tile variants at specific positions (rest alternate plain/dark grass)
+  private static readonly TILE_VARIANTS: Record<string, number> = {
+    '2,3': 1,
+    '5,7': 1,
+    '8,2': 1,
+    '10,9': 1,
+    '3,10': 1,
+    '7,4': 1,
+    '11,6': 1,
+    '1,8': 4,
+    '9,3': 4,
+    '4,11': 4,
+    '6,1': 5,
+    '1,1': 5,
+    '1,2': 5,
+    '0,0': 6,
+    '0,1': 6,
+    '0,2': 6,
+    '0,3': 6,
+    '0,4': 6,
+    '0,5': 6,
+    '0,6': 6,
+    '0,7': 6,
+    '0,8': 6,
+    '0,9': 6,
+    '0,10': 6,
+    '0,11': 6,
+    '2,6': 0,
+    '2,7': 0,
+    '2,8': 0,
+    '3,6': 0,
+    '3,7': 0,
+    '3,8': 0,
+    '4,6': 0,
+    '4,7': 0,
+    '3,11': 0,
+    '4,10': 0,
+  }
+
+  private placeTileSprites(): void {
+    this.tileSprites.forEach((s) => s.destroy())
+    this.tileSprites = []
     for (let row = 0; row < FARM_GRID.rows; row++) {
       for (let col = 0; col < FARM_GRID.cols; col++) {
-        const pts = this.iso.diamondPoints(col, row)
-        this.floor.fillStyle((col + row) % 2 === 0 ? COLORS.tileA : COLORS.tileB, 1)
-        this.floor.lineStyle(1, COLORS.tileLine, 0.4)
-        this.floor.beginPath()
-        this.floor.moveTo(pts[0].x, pts[0].y)
-        pts.slice(1).forEach((p) => this.floor.lineTo(p.x, p.y))
-        this.floor.closePath()
-        this.floor.fillPath()
-        this.floor.strokePath()
+        const pos = this.iso.toScreen(col, row)
+        const key = `${col},${row}`
+        const frame = FarmScene.TILE_VARIANTS[key] ?? 7
+        const img = this.add.image(pos.x, pos.y, 'terrain', frame).setOrigin(0.5, 0.5).setDepth(-1)
+        this.tileSprites.push(img)
       }
+    }
+  }
+
+  private placeFenceSprites(): void {
+    this.fenceSprites.forEach((s) => s.destroy())
+    this.fenceSprites = []
+    const hw = this.iso.tileWidth / 2 // 48
+    const hh = this.iso.tileHeight / 2 // 24
+
+    // Left edge (col=0): start from row=1 to avoid crossing at the top corner
+    for (let row = 1; row < FARM_GRID.rows; row++) {
+      const c = this.iso.toScreen(0, row)
+      this.fenceSprites.push(
+        this.add
+          .image(c.x + hw / 2, c.y + hh / 2, 'fence', 1)
+          .setOrigin(0.5, 1)
+          .setDepth(2)
+      )
+    }
+    // Top edge (row=0): start from col=1 to avoid crossing at the top corner
+    for (let col = 1; col < FARM_GRID.cols; col++) {
+      const c = this.iso.toScreen(col, 0)
+      this.fenceSprites.push(
+        this.add
+          .image(c.x - hw / 2, c.y + hh / 2, 'fence', 0)
+          .setOrigin(0.5, 1)
+          .setDepth(2)
+      )
+    }
+  }
+
+  private placeDecorations(): void {
+    this.decorationSprites.forEach((s) => s.destroy())
+    this.decorationSprites = []
+
+    // Place decorations just outside the grid boundary (not on walkable tiles)
+    const leftMid = this.iso.toScreen(0, Math.floor(FARM_GRID.rows / 2))
+    const rightMid = this.iso.toScreen(FARM_GRID.cols - 1, Math.floor(FARM_GRID.rows / 2))
+    const bottom = this.iso.toScreen(Math.floor(FARM_GRID.cols / 2), FARM_GRID.rows - 1)
+
+    const spots = [
+      { x: leftMid.x - 80, y: leftMid.y - 20, frame: 0 }, // hay bale — left
+      { x: leftMid.x - 80, y: leftMid.y + 40, frame: 1 }, // bush — left lower
+      { x: rightMid.x + 80, y: rightMid.y - 20, frame: 2 }, // bucket — right
+      { x: rightMid.x + 80, y: rightMid.y + 40, frame: 3 }, // well — right lower
+      { x: bottom.x - 60, y: bottom.y + 30, frame: 1 }, // bush — bottom-left
+      { x: bottom.x + 60, y: bottom.y + 30, frame: 0 }, // hay — bottom-right
+    ]
+
+    for (const s of spots) {
+      this.decorationSprites.push(
+        this.add.image(s.x, s.y, 'decorations', s.frame).setOrigin(0.5, 1).setDepth(4)
+      )
+    }
+  }
+
+  private createButterflies(): void {
+    this.butterflies.forEach((b) => b.destroy())
+    this.butterflies = []
+    const mid = this.iso.toScreen(FARM_GRID.cols / 2, FARM_GRID.rows / 2)
+
+    // Two butterflies with different orbit phases
+    for (let i = 0; i < 2; i++) {
+      const b = this.add.sprite(mid.x, mid.y, 'butterfly').setScale(1.4).setDepth(25).setAlpha(0.9)
+      b.play('butterfly_fly')
+      this.butterflies.push(b)
+    }
+  }
+
+  private updateButterflies(): void {
+    this.butterflyTime += 0.012
+    const mid = this.iso.toScreen(FARM_GRID.cols / 2, FARM_GRID.rows / 2)
+    const phases = [0, Math.PI]
+
+    for (let i = 0; i < this.butterflies.length; i++) {
+      const t = this.butterflyTime + phases[i]
+      const bx = mid.x + 120 * Math.sin(t)
+      const by = mid.y + 40 * Math.sin(t * 2) - 30
+      const b = this.butterflies[i]
+      if (b.x - bx > 1) b.setFlipX(true)
+      if (bx - b.x > 1) b.setFlipX(false)
+      b.x = bx
+      b.y = by
     }
   }
 
@@ -508,6 +702,7 @@ export class FarmScene extends Phaser.Scene {
   private moveFarmer(farm: ReturnType<typeof useFarmStore.getState>): void {
     let targetX = this.farmerHome.x
     let targetY = this.farmerHome.y
+    let goingToEgg = false
 
     if (farm.farmer.state === 'working' && farm.farmer.targetEggId) {
       const egg = farm.groundEggs.find((e) => e.id === farm.farmer.targetEggId)
@@ -515,11 +710,44 @@ export class FarmScene extends Phaser.Scene {
         const pos = this.iso.toScreen(egg.col, egg.row)
         targetX = pos.x
         targetY = pos.y
+        goingToEgg = true
       }
     }
 
-    this.farmer.x += (targetX - this.farmer.x) * 0.15
-    this.farmer.y += (targetY - this.farmer.y) * 0.15
+    const dx = targetX - this.farmer.x
+    const dy = targetY - this.farmer.y
+    const isMoving = Math.sqrt(dx * dx + dy * dy) > 4
+
+    // Flip toward movement direction
+    if (Math.abs(dx) > 2) this.farmer.setFlipX(dx < 0)
+
+    // Slower lerp so animations are visible
+    this.farmer.x += dx * 0.07
+    this.farmer.y += dy * 0.07
+
+    // Track carrying: set true when store transitions working→idle (egg just collected),
+    // clear when farmer physically arrives back home.
+    if (this.farmerPrevState === 'working' && farm.farmer.state === 'idle') {
+      this.farmerCarrying = true
+    }
+    if (farm.farmer.state === 'idle' && !isMoving) {
+      this.farmerCarrying = false
+    }
+    this.farmerPrevState = farm.farmer.state
+
+    // Animation
+    const currentAnim = this.farmer.anims.currentAnim?.key
+    let desiredAnim: string
+    if (goingToEgg && !isMoving) {
+      desiredAnim = 'farmer_collect'
+    } else if (this.farmerCarrying && isMoving) {
+      desiredAnim = 'farmer_carry'
+    } else if (isMoving) {
+      desiredAnim = 'farmer_walk'
+    } else {
+      desiredAnim = 'farmer_idle'
+    }
+    if (currentAnim !== desiredAnim) this.farmer.play(desiredAnim)
   }
 
   // ── Resize ─────────────────────────────────────────────────────────────────
@@ -527,7 +755,11 @@ export class FarmScene extends Phaser.Scene {
   private relayout(): void {
     const { width, height } = this.scale
     this.iso.setOrigin(width / 2, height * 0.18)
-    this.drawFloor()
+
+    this.placeTileSprites()
+    this.placeFenceSprites()
+    this.placeDecorations()
+    this.createButterflies()
 
     this.tileZones.forEach((z) => z.destroy())
     this.tileZones = []
