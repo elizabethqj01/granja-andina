@@ -96,7 +96,7 @@ export function LevelHUD() {
         <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-900/60 text-base">
           🐔
         </div>
-        <span className="font-mono text-xs font-bold" style={TEXT_MAIN}>
+        <span className="font-kalam text-xs font-bold" style={TEXT_MAIN}>
           ×{FARM_LEVEL1.initialChickens}
         </span>
       </div>

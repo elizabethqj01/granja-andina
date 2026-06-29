@@ -293,7 +293,7 @@ export class FarmScene extends Phaser.Scene {
       .text(width * 0.25 - 8, height * 0.25 - 90, `$${cornBatchPrice}`, {
         fontSize: '28px',
         color: '#FFD700',
-        fontFamily: 'monospace',
+        fontFamily: 'Kalam',
         fontStyle: 'bold',
         stroke: '#000000',
         strokeThickness: 4,
@@ -412,7 +412,7 @@ export class FarmScene extends Phaser.Scene {
           .text(pos.x, pos.y, '🌽 ¡Sin maíz!', {
             fontSize: '13px',
             color: '#ffffff',
-            fontFamily: 'monospace',
+            fontFamily: 'Kalam',
             fontStyle: 'bold',
             backgroundColor: '#c62828',
             padding: { x: 5, y: 3 },

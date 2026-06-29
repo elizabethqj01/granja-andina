@@ -56,7 +56,7 @@ export class FarmEntity extends Phaser.GameObjects.Container {
         .text(0, labelY, cfg.label, {
           fontSize: '13px',
           color: '#ffffff',
-          fontFamily: 'monospace',
+          fontFamily: 'Kalam',
           fontStyle: 'bold',
           stroke: '#000000',
           strokeThickness: 4,

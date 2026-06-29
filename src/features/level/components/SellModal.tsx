@@ -51,7 +51,7 @@ export function SellModal() {
             <span className="text-sm text-text-secondary">
               🥚 Huevos disponibles: <strong className="text-text-primary">{warehouseEggs}</strong>
             </span>
-            <span className="font-mono text-xs text-accent-primary">
+            <span className="font-kalam text-xs text-accent-primary">
               ${FARM_LEVEL1.eggSellPrice}c/u
             </span>
           </div>
@@ -62,7 +62,7 @@ export function SellModal() {
             >
               −
             </button>
-            <span className="flex-1 text-center font-mono text-2xl font-bold text-text-primary">
+            <span className="flex-1 text-center font-fredoka text-2xl font-bold text-text-primary">
               {eggCount}
             </span>
             <button
@@ -88,7 +88,7 @@ export function SellModal() {
                 🐔 Gallinas vendibles:{' '}
                 <strong className="text-text-primary">{chickensSellable}</strong>
               </span>
-              <span className="font-mono text-xs text-accent-primary">
+              <span className="font-kalam text-xs text-accent-primary">
                 ${FARM_LEVEL1.chickenSellPrice}c/u
               </span>
             </div>
@@ -99,7 +99,7 @@ export function SellModal() {
               >
                 −
               </button>
-              <span className="flex-1 text-center font-mono text-2xl font-bold text-text-primary">
+              <span className="flex-1 text-center font-fredoka text-2xl font-bold text-text-primary">
                 {chickenCount}
               </span>
               <button
@@ -118,7 +118,7 @@ export function SellModal() {
         {/* Total */}
         <div className="mb-5 rounded-lg border border-border-default bg-surface-secondary p-3 text-center">
           <p className="text-xs text-text-secondary">Total a recibir cuando el camión vuelva</p>
-          <p className="font-mono text-2xl font-bold text-accent-primary">
+          <p className="font-fredoka text-2xl font-bold text-accent-primary">
             ${totalIncome.toLocaleString('es-CO')}
           </p>
         </div>

@@ -66,7 +66,7 @@ function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex items-center justify-between">
       <dt className="text-text-secondary">{label}</dt>
-      <dd className="font-mono font-semibold text-text-primary">{value}</dd>
+      <dd className="font-kalam font-semibold text-text-primary">{value}</dd>
     </div>
   )
 }

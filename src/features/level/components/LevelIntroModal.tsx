@@ -19,7 +19,7 @@ export function LevelIntroModal() {
         <div className="my-5 flex items-center justify-center gap-3 rounded-lg border border-border-default bg-surface-secondary p-4">
           <span className="text-3xl">🥚</span>
           <div className="text-left">
-            <p className="font-mono text-2xl font-bold text-text-primary">
+            <p className="font-fredoka text-2xl font-bold text-text-primary">
               {FARM_LEVEL1.objectiveEggs} huevos
             </p>
             <p className="text-xs text-text-secondary">Recoléctalos en el almacén</p>
