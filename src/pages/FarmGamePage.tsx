@@ -7,6 +7,7 @@ import { InGameMenu } from '@/features/level/components/InGameMenu'
 import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
 import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
 import { SellModal } from '@/features/level/components/SellModal'
+import { CostScrollModal } from '@/features/level/components/CostScrollModal'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
 
@@ -47,6 +48,7 @@ export function FarmGamePage() {
       <LevelHUD />
       <LevelIntroModal />
       <SellModal />
+      <CostScrollModal />
       <CostFlowDialog />
       <InGameMenu
         onResume={() => setFarmDialog(null)}

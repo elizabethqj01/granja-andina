@@ -18,6 +18,7 @@ import cornStockBadgeUrl from '@/assets/sprites/corn_stock_badge.png'
 import coinUrl from '@/assets/sprites/coin.png'
 import warehouseUrl from '@/assets/sprites/warehouse..png'
 import truckUrl from '@/assets/sprites/truck.png'
+import scrollIconUrl from '@/assets/sprites/scroll_icon.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
@@ -63,6 +64,9 @@ export class FarmScene extends Phaser.Scene {
   private truckSprite!: Phaser.GameObjects.Sprite
   private truckBubble!: Phaser.GameObjects.Text
   private warehouseSprite!: Phaser.GameObjects.Sprite
+  private scrollMPD!: Phaser.GameObjects.Container
+  private scrollWIP!: Phaser.GameObjects.Container
+  private scrollPT!: Phaser.GameObjects.Container
   private cornWarehouseSprite!: Phaser.GameObjects.Sprite
   private cornStockBadge!: Phaser.GameObjects.Sprite
   private cornPriceCoin!: Phaser.GameObjects.Sprite
@@ -114,6 +118,7 @@ export class FarmScene extends Phaser.Scene {
     this.load.spritesheet('coin', coinUrl, { frameWidth: 64, frameHeight: 64 })
     this.load.spritesheet('warehouse', warehouseUrl, { frameWidth: 128, frameHeight: 160 })
     this.load.spritesheet('truck', truckUrl, { frameWidth: 128, frameHeight: 112 })
+    this.load.spritesheet('scroll_icon', scrollIconUrl, { frameWidth: 64, frameHeight: 64 })
   }
 
   create(): void {
@@ -337,6 +342,16 @@ export class FarmScene extends Phaser.Scene {
       .setInteractive({ useHandCursor: true })
     this.warehouseSprite.on('pointerdown', () => this.openSellModal())
 
+    // Cost-flow scroll buttons — one at each production stage
+    this.scrollMPD = this.createScrollButton(width * 0.35, height * 0.22, 'MPD', 'scroll-mpd')
+    this.scrollWIP = this.createScrollButton(
+      width * 0.58,
+      height * 0.38,
+      'Producción',
+      'scroll-wip'
+    )
+    this.scrollPT = this.createScrollButton(width * 0.73, height * 0.82, 'PT', 'scroll-pt')
+
     this.scale.on('resize', () => this.relayout())
   }
 
@@ -507,6 +522,48 @@ export class FarmScene extends Phaser.Scene {
   }
 
   // ── Truck animation ────────────────────────────────────────────────────────
+
+  private createScrollButton(
+    x: number,
+    y: number,
+    label: string,
+    dialog: string
+  ): Phaser.GameObjects.Container {
+    const sprite = this.add.sprite(0, -6, 'scroll_icon', 0).setOrigin(0.5, 0.5).setScale(0.88)
+
+    const txt = this.add
+      .text(0, 30, label, {
+        fontSize: '11px',
+        fontFamily: 'Kalam',
+        fontStyle: 'bold',
+        color: '#3B1000',
+        stroke: '#FFF8E0',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 0.5)
+
+    const container = this.add
+      .container(x, y, [sprite, txt])
+      .setDepth(36)
+      .setSize(64, 80)
+      .setInteractive({ useHandCursor: true })
+
+    container.on('pointerover', () => sprite.setFrame(1))
+    container.on('pointerout', () => sprite.setFrame(0))
+    container.on('pointerdown', () => useUiStore.getState().setFarmDialog(dialog as 'scroll-mpd'))
+
+    // Gentle float tween to draw attention
+    this.tweens.add({
+      targets: container,
+      y: y - 6,
+      duration: 1200,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+    })
+
+    return container
+  }
 
   private startTruckAnimation(): void {
     this.truckAnimating = true
@@ -894,6 +951,9 @@ export class FarmScene extends Phaser.Scene {
     this.cornPriceText.setPosition(width * 0.25 - 8, height * 0.25 - 90)
     this.chickenShop.setPosition(width * 0.11, height * 0.09)
     this.warehouseSprite.setPosition(width * 0.86, height * 0.88)
+    this.scrollMPD.setPosition(width * 0.35, height * 0.22)
+    this.scrollWIP.setPosition(width * 0.58, height * 0.38)
+    this.scrollPT.setPosition(width * 0.73, height * 0.82)
     this.farmerHome.set(width / 2, height * 0.82)
 
     if (!this.truckAnimating) {
