@@ -4,6 +4,7 @@ import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import coinUrl from '@/assets/sprites/coin.png'
 import starUrl from '@/assets/sprites/start.png'
+import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
 function CoinSprite({ size = 24 }: { size?: number }) {
   const [frame, setFrame] = useState(0)
@@ -57,12 +58,20 @@ function starCount(elapsedSec: number): number {
 }
 
 const PANEL_STYLE: React.CSSProperties = {
-  background: 'linear-gradient(160deg, #2d1a00 0%, #4a2c0a 45%, #3a2008 100%)',
-  border: '2px solid #8B6914',
-  boxShadow: '0 4px 24px rgba(0,0,0,0.75), inset 0 1px 0 rgba(255,200,80,0.12)',
+  backgroundImage: `url(${hudPanelUrl})`,
+  backgroundSize: '100% 100%',
+  boxShadow: '0 4px 20px rgba(0,0,0,0.6)',
 }
 
-const DIVIDER: React.CSSProperties = { borderBottom: '1px solid #5a3d0a' }
+const TEXT_MAIN: React.CSSProperties = {
+  color: '#FFF3D0',
+  textShadow: '1px 1px 3px rgba(0,0,0,0.85)',
+}
+
+const TEXT_LABEL: React.CSSProperties = {
+  color: '#D4956A',
+  textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+}
 
 export function LevelHUD() {
   const elapsedSec = useFarmStore((s) => s.elapsedSec)
@@ -85,7 +94,9 @@ export function LevelHUD() {
         <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-900/60 text-base">
           🐔
         </div>
-        <span className="font-mono text-xs text-amber-300">×{FARM_LEVEL1.initialChickens}</span>
+        <span className="font-mono text-xs font-bold" style={TEXT_MAIN}>
+          ×{FARM_LEVEL1.initialChickens}
+        </span>
       </div>
 
       {/* Top-right — main HUD panel */}
@@ -94,44 +105,52 @@ export function LevelHUD() {
         style={PANEL_STYLE}
       >
         {/* Timer */}
-        <div className="flex items-center justify-center gap-2 px-4 py-2" style={DIVIDER}>
+        <div className="flex items-center justify-center gap-2 px-6 pt-4 pb-2">
           <span className="text-lg">⏱</span>
-          <span
-            className="font-mono text-2xl font-bold tracking-widest text-white"
-            style={{ textShadow: '0 0 10px rgba(255,200,0,0.4)' }}
-          >
+          <span className="font-mono text-2xl font-bold tracking-widest" style={TEXT_MAIN}>
             {formatTime(elapsedSec)}
           </span>
         </div>
 
         {/* Stars */}
-        <div className="flex items-center justify-center gap-1 px-4 py-2" style={DIVIDER}>
+        <div className="flex items-center justify-center gap-1 px-6 py-2">
           {[1, 2, 3].map((n) => (
             <StarSprite key={n} filled={n <= stars} size={30} />
           ))}
         </div>
 
         {/* Cash */}
-        <div className="flex items-center justify-between gap-3 px-4 py-1.5" style={DIVIDER}>
-          <span className="text-xs uppercase tracking-wide text-amber-500/70">Caja</span>
-          <span className="flex items-center gap-1 font-mono text-base font-bold text-amber-300">
+        <div className="flex items-center justify-between gap-3 px-6 py-1.5">
+          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
+            Caja
+          </span>
+          <span className="flex items-center gap-1 font-mono text-base font-bold" style={TEXT_MAIN}>
             <CoinSprite size={20} />${cash.toLocaleString('es-CO')}
           </span>
         </div>
 
         {/* Objective */}
-        <div className="flex items-center justify-between gap-3 px-4 py-1.5" style={DIVIDER}>
-          <span className="text-xs uppercase tracking-wide text-amber-500/70">Objetivo</span>
-          <span className="font-mono text-sm font-bold text-white">
+        <div className="flex items-center justify-between gap-3 px-6 py-1.5">
+          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
+            Objetivo
+          </span>
+          <span className="font-mono text-sm font-bold" style={TEXT_MAIN}>
             🥚 {collected}/{FARM_LEVEL1.objectiveEggs}
           </span>
         </div>
 
         {/* Warehouse */}
-        <div className="flex items-center justify-between gap-3 px-4 py-1.5">
-          <span className="text-xs uppercase tracking-wide text-amber-500/70">Almacén</span>
+        <div className="flex items-center justify-between gap-3 px-6 pt-1.5 pb-4">
+          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
+            Almacén
+          </span>
           <span
-            className={`font-mono text-sm font-bold ${warehouseFull ? 'text-red-400' : 'text-white/80'}`}
+            className="font-mono text-sm font-bold"
+            style={
+              warehouseFull
+                ? { color: '#FF4422', textShadow: '1px 1px 3px rgba(0,0,0,0.85)' }
+                : TEXT_MAIN
+            }
           >
             {warehouseEggs}/{FARM_LEVEL1.maxWarehouseEggs}
             {warehouseFull && ' 🔴'}
@@ -153,8 +172,8 @@ export function LevelHUD() {
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
           onClick={() => setFarmDialog('menu')}
-          className="rounded-xl px-5 py-2 text-sm font-bold text-white transition-colors"
-          style={PANEL_STYLE}
+          className="rounded-xl px-5 py-2 text-sm font-bold transition-colors"
+          style={{ ...PANEL_STYLE, ...TEXT_MAIN }}
         >
           Menú
         </button>
