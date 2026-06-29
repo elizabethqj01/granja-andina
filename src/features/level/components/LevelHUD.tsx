@@ -70,6 +70,8 @@ const TEXT_MAIN: React.CSSProperties = {
 
 const TEXT_LABEL: React.CSSProperties = {
   color: '#D4956A',
+  fontFamily: "'Kalam', cursive",
+  fontWeight: 700,
   textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
 }
 
@@ -107,7 +109,14 @@ export function LevelHUD() {
         {/* Timer */}
         <div className="flex items-center justify-center gap-2 px-6 pt-4 pb-2">
           <span className="text-lg">⏱</span>
-          <span className="font-mono text-2xl font-bold tracking-widest" style={TEXT_MAIN}>
+          <span
+            style={{
+              ...TEXT_MAIN,
+              fontFamily: "'Fredoka One', cursive",
+              fontSize: '1.6rem',
+              letterSpacing: '0.1em',
+            }}
+          >
             {formatTime(elapsedSec)}
           </span>
         </div>
@@ -124,7 +133,10 @@ export function LevelHUD() {
           <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
             Caja
           </span>
-          <span className="flex items-center gap-1 font-mono text-base font-bold" style={TEXT_MAIN}>
+          <span
+            className="flex items-center gap-1 text-base font-bold"
+            style={{ ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }}
+          >
             <CoinSprite size={20} />${cash.toLocaleString('es-CO')}
           </span>
         </div>
@@ -134,7 +146,10 @@ export function LevelHUD() {
           <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
             Objetivo
           </span>
-          <span className="font-mono text-sm font-bold" style={TEXT_MAIN}>
+          <span
+            className="text-sm font-bold"
+            style={{ ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }}
+          >
             🥚 {collected}/{FARM_LEVEL1.objectiveEggs}
           </span>
         </div>
@@ -145,11 +160,15 @@ export function LevelHUD() {
             Almacén
           </span>
           <span
-            className="font-mono text-sm font-bold"
+            className="text-sm font-bold"
             style={
               warehouseFull
-                ? { color: '#FF4422', textShadow: '1px 1px 3px rgba(0,0,0,0.85)' }
-                : TEXT_MAIN
+                ? {
+                    color: '#FF4422',
+                    textShadow: '1px 1px 3px rgba(0,0,0,0.85)',
+                    fontFamily: "'Kalam', cursive",
+                  }
+                : { ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }
             }
           >
             {warehouseEggs}/{FARM_LEVEL1.maxWarehouseEggs}
