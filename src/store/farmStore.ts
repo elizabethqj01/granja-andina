@@ -65,6 +65,7 @@ export interface FarmState {
   // Truck sale mechanic
   saleState: SaleState
   pendingSaleIncome: number
+  pendingSaleEggs: number
 
   levelComplete: boolean
   stars: LevelStars
@@ -195,6 +196,7 @@ function initialFarmState(): FarmState {
     eggsSold: 0,
     saleState: 'idle',
     pendingSaleIncome: 0,
+    pendingSaleEggs: 0,
     levelComplete: false,
     stars: 0,
     notification: null,
@@ -475,6 +477,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         eggsSold: s.eggsSold + eggCount,
         chickens: s.chickens.slice(0, keepCount),
         pendingSaleIncome: income,
+        pendingSaleEggs: eggCount,
         saleState: 'in-transit',
       })
     },
@@ -487,6 +490,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         cash: s.cash + s.pendingSaleIncome,
         revenue: s.revenue + s.pendingSaleIncome,
         pendingSaleIncome: 0,
+        pendingSaleEggs: 0,
         saleState: 'idle',
       })
     },

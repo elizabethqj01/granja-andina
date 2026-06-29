@@ -39,6 +39,7 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     eggsSold: 0,
     saleState: 'idle',
     pendingSaleIncome: 0,
+    pendingSaleEggs: 0,
     levelComplete: false,
     stars: 0,
     notification: null,

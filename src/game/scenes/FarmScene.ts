@@ -16,17 +16,16 @@ import backgroundUrl from '@/assets/sprites/background.jpg'
 import cornWarehouseUrl from '@/assets/sprites/corn_warehouse.png'
 import cornStockBadgeUrl from '@/assets/sprites/corn_stock_badge.png'
 import coinUrl from '@/assets/sprites/coin.png'
+import warehouseUrl from '@/assets/sprites/warehouse..png'
+import truckUrl from '@/assets/sprites/truck.png'
 
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
   egg: 34,
   corn: 30,
   farmer: 48,
-  truck: 70,
   cornWarehouse: 66,
   chickenShop: 58,
-  eggWarehouse: 66,
-  cart: 58,
 } as const
 
 // Chicken sprite sheet layout (128×128 px per frame, 6 cols × 4 rows = 768×512)
@@ -53,9 +52,6 @@ const COLORS = {
   eggCollecting: 0xffd54f,
   farmer: 0x6d4c41,
   corn: 0xfbc02d,
-  eggWarehouse: 0xbcaaa4,
-  cart: 0x8d6e63,
-  truck: 0x546e7a,
   chickenShop: 0xc8e6c9,
 }
 
@@ -64,13 +60,13 @@ export class FarmScene extends Phaser.Scene {
   private farmer!: Phaser.GameObjects.Sprite
   private farmerCarrying = false
   private farmerPrevState: 'idle' | 'working' = 'idle'
-  private truck!: FarmEntity
+  private truckSprite!: Phaser.GameObjects.Sprite
+  private truckBubble!: Phaser.GameObjects.Text
+  private warehouseSprite!: Phaser.GameObjects.Sprite
   private cornWarehouseSprite!: Phaser.GameObjects.Sprite
   private cornStockBadge!: Phaser.GameObjects.Sprite
   private cornPriceCoin!: Phaser.GameObjects.Sprite
   private cornPriceText!: Phaser.GameObjects.Text
-  private eggWarehouse!: FarmEntity
-  private cart!: FarmEntity
   private chickenShop!: FarmEntity
   private bgImage!: Phaser.GameObjects.Image
   private tileSprites: Phaser.GameObjects.Image[] = []
@@ -116,6 +112,8 @@ export class FarmScene extends Phaser.Scene {
       frameHeight: 64,
     })
     this.load.spritesheet('coin', coinUrl, { frameWidth: 64, frameHeight: 64 })
+    this.load.spritesheet('warehouse', warehouseUrl, { frameWidth: 128, frameHeight: 160 })
+    this.load.spritesheet('truck', truckUrl, { frameWidth: 128, frameHeight: 112 })
   }
 
   create(): void {
@@ -244,6 +242,13 @@ export class FarmScene extends Phaser.Scene {
       repeat: FARMER_ANIM.carry.repeat,
     })
 
+    this.anims.create({
+      key: 'truck_roll',
+      frames: this.anims.generateFrameNumbers('truck', { start: 0, end: 3 }),
+      frameRate: 8,
+      repeat: -1,
+    })
+
     // Farmer sprite
     this.farmerHome.set(width / 2, height * 0.82)
     this.farmer = this.add
@@ -254,12 +259,24 @@ export class FarmScene extends Phaser.Scene {
     this.farmer.play('farmer_idle')
 
     // Truck — off-screen right until a sale is triggered
-    this.truck = new FarmEntity(this, width + 150, height * 0.85, {
-      icon: '🚚',
-      color: COLORS.truck,
-      size: SZ.truck,
-    })
-    this.truck.setDepth(60)
+    this.truckSprite = this.add
+      .sprite(width + 150, height * 0.85, 'truck', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(0.85)
+      .setDepth(60)
+
+    this.truckBubble = this.add
+      .text(width + 150, height * 0.85 - 70, '', {
+        fontSize: '20px',
+        fontFamily: 'Kalam',
+        color: '#FFD700',
+        stroke: '#000000',
+        strokeThickness: 4,
+        align: 'center',
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(61)
+      .setVisible(false)
 
     // Corn warehouse — left side near the farm grid
     this.cornWarehouseSprite = this.add
@@ -311,23 +328,14 @@ export class FarmScene extends Phaser.Scene {
       interactive: true,
     }).onClick(() => useFarmStore.getState().buyChicken())
 
-    // Egg warehouse — bottom-right
-    this.eggWarehouse = new FarmEntity(this, width * 0.86, height * 0.88, {
-      icon: '🥚',
-      label: 'Almacén',
-      color: COLORS.eggWarehouse,
-      size: SZ.eggWarehouse,
-      interactive: true,
-    }).onClick(() => this.openSellModal())
-
-    // Cart — bottom-left
-    this.cart = new FarmEntity(this, width * 0.13, height * 0.88, {
-      icon: '🛒',
-      label: 'Vender',
-      color: COLORS.cart,
-      size: SZ.cart,
-      interactive: true,
-    }).onClick(() => this.openSellModal())
+    // Egg warehouse — bottom-right, single interactive sprite
+    this.warehouseSprite = this.add
+      .sprite(width * 0.86, height * 0.88, 'warehouse', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(0.72)
+      .setDepth(30)
+      .setInteractive({ useHandCursor: true })
+    this.warehouseSprite.on('pointerdown', () => this.openSellModal())
 
     this.scale.on('resize', () => this.relayout())
   }
@@ -363,10 +371,12 @@ export class FarmScene extends Phaser.Scene {
     this.cornPriceText.setVisible(storeOpen)
 
     const full = farm.warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
-    this.eggWarehouse.setLabel(
-      `🥚 ${farm.warehouseEggs}/${FARM_LEVEL1.maxWarehouseEggs}${full ? '  ¡LLENO!' : ''}`
+    const fillFrame = Math.min(
+      4,
+      Math.floor((farm.warehouseEggs / FARM_LEVEL1.maxWarehouseEggs) * 5)
     )
-    this.eggWarehouse.setAlpha(full ? 0.85 : 1)
+    this.warehouseSprite.setFrame(fillFrame)
+    this.warehouseSprite.setAlpha(full ? 0.9 : 1)
 
     this.chickenShop.setAlpha(farm.chickens.length >= FARM_LEVEL1.maxChickens ? 0.4 : 1)
 
@@ -502,38 +512,70 @@ export class FarmScene extends Phaser.Scene {
     this.truckAnimating = true
     const { width, height } = this.scale
     const y = height * 0.85
+    const store = useFarmStore.getState()
+    const eggs = store.pendingSaleEggs
+    const income = store.pendingSaleIncome
 
-    this.truck.setPosition(width + 150, y).setScale(1, 1)
+    // Truck image faces RIGHT (cab on right). Entering from right moving left → flip (face left)
+    this.truckSprite.setPosition(width + 200, y).setFlipX(true)
+    this.truckBubble.setPosition(width + 200, y - 70).setVisible(false)
+    this.truckSprite.play('truck_roll')
 
+    const moveBubble = () => {
+      this.truckBubble.setPosition(this.truckSprite.x, this.truckSprite.y - 70)
+    }
+
+    // 1. Enter from right → park near warehouse
     this.tweens.add({
-      targets: this.truck,
-      x: width * 0.5,
-      duration: 900,
-      ease: 'Linear',
-      onStart: () => this.truck.setScale(-1, 1),
+      targets: this.truckSprite,
+      x: width * 0.72,
+      duration: 1600,
+      ease: 'Cubic.easeOut',
+      onUpdate: moveBubble,
       onComplete: () => {
-        this.time.delayedCall(350, () => {
+        this.truckSprite.stop()
+        this.truckBubble.setText(`🥚 ×${eggs}`).setVisible(true)
+        // 2. Leave toward city (right side) — facing right (no flip)
+        this.time.delayedCall(600, () => {
+          this.truckSprite.setFlipX(false)
+          this.truckSprite.play('truck_roll')
           this.tweens.add({
-            targets: this.truck,
-            x: -150,
-            duration: 700,
-            ease: 'Linear',
+            targets: this.truckSprite,
+            x: width + 200,
+            duration: 1400,
+            ease: 'Cubic.easeIn',
+            onUpdate: moveBubble,
             onComplete: () => {
-              this.time.delayedCall(500, () => {
-                this.truck.setScale(1, 1)
+              this.truckSprite.stop()
+              this.truckBubble.setVisible(false)
+              // 3. Return from right carrying money — flip to face left
+              this.time.delayedCall(1200, () => {
+                this.truckSprite.setPosition(width + 200, y).setFlipX(true)
+                this.truckBubble
+                  .setPosition(width + 200, y - 70)
+                  .setText(`💰 $${income.toLocaleString('es-CO')}`)
+                  .setVisible(true)
+                this.truckSprite.play('truck_roll')
                 this.tweens.add({
-                  targets: this.truck,
-                  x: width * 0.5,
-                  duration: 900,
-                  ease: 'Linear',
+                  targets: this.truckSprite,
+                  x: width * 0.72,
+                  duration: 1600,
+                  ease: 'Cubic.easeOut',
+                  onUpdate: moveBubble,
                   onComplete: () => {
-                    this.time.delayedCall(350, () => {
+                    this.truckSprite.stop()
+                    // 4. Unload — brief pause then exit to right
+                    this.time.delayedCall(800, () => {
+                      this.truckBubble.setVisible(false)
+                      this.truckSprite.setFlipX(false)
+                      this.truckSprite.play('truck_roll')
                       this.tweens.add({
-                        targets: this.truck,
-                        x: width + 150,
-                        duration: 700,
-                        ease: 'Linear',
+                        targets: this.truckSprite,
+                        x: width + 200,
+                        duration: 1200,
+                        ease: 'Cubic.easeIn',
                         onComplete: () => {
+                          this.truckSprite.stop()
                           useFarmStore.getState().completeSale()
                           this.truckAnimating = false
                         },
@@ -851,12 +893,11 @@ export class FarmScene extends Phaser.Scene {
     this.cornPriceCoin.setPosition(width * 0.25 - 26, height * 0.25 - 90)
     this.cornPriceText.setPosition(width * 0.25 - 8, height * 0.25 - 90)
     this.chickenShop.setPosition(width * 0.11, height * 0.09)
-    this.eggWarehouse.setPosition(width * 0.86, height * 0.88)
-    this.cart.setPosition(width * 0.13, height * 0.88)
+    this.warehouseSprite.setPosition(width * 0.86, height * 0.88)
     this.farmerHome.set(width / 2, height * 0.82)
 
     if (!this.truckAnimating) {
-      this.truck.setPosition(width + 150, height * 0.85)
+      this.truckSprite.setPosition(width + 150, height * 0.85)
     }
 
     this.placedCornSprites.forEach((s) => s.destroy())
