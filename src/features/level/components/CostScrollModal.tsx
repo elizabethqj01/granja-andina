@@ -1,3 +1,5 @@
+import { useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
@@ -268,6 +270,31 @@ function PTContent({ d }: { d: CostData }) {
   )
 }
 
+// ── Navigation config ──────────────────────────────────────────────────────────
+
+const PAGES = [
+  { key: 'mpd', label: '🌽 MPD' },
+  { key: 'wip', label: '⚙️ Producción' },
+  { key: 'pt', label: '🥚 PT + Resultado' },
+] as const
+
+const PAGE_VARIANTS = {
+  enter: (dir: number) => ({
+    x: dir >= 0 ? '55%' : '-55%',
+    opacity: 0,
+  }),
+  center: {
+    x: 0,
+    opacity: 1,
+    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] },
+  },
+  exit: (dir: number) => ({
+    x: dir >= 0 ? '-55%' : '55%',
+    opacity: 0,
+    transition: { duration: 0.18, ease: 'easeIn' },
+  }),
+}
+
 // ── Main modal ─────────────────────────────────────────────────────────────────
 
 const PAPER: React.CSSProperties = {
@@ -279,27 +306,52 @@ const PAPER: React.CSSProperties = {
   border: '1px solid #c8b076',
   borderLeft: 'none',
   flex: 1,
-  overflowY: 'auto' as const,
   maxHeight: '82vh',
   position: 'relative' as const,
+  display: 'flex',
+  flexDirection: 'column' as const,
+  overflow: 'hidden',
+}
+
+const NAV_BTN: React.CSSProperties = {
+  background: '#8b4020',
+  color: '#ffecd0',
+  border: '2px solid #6a2c12',
+  borderRadius: '6px',
+  padding: '5px 14px',
+  fontFamily: "'Fredoka One', cursive",
+  fontSize: '13px',
+  cursor: 'pointer',
+  letterSpacing: '0.04em',
+  transition: 'opacity 0.15s',
 }
 
 export function CostScrollModal() {
   const farmDialog = useUiStore((s) => s.farmDialog)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
-
-  const section =
-    farmDialog === 'scroll-mpd'
-      ? 'mpd'
-      : farmDialog === 'scroll-wip'
-        ? 'wip'
-        : farmDialog === 'scroll-pt'
-          ? 'pt'
-          : null
-
   const d = useCostData()
 
-  if (!section) return null
+  const [idx, setIdx] = useState(0)
+  const [dir, setDir] = useState(1)
+
+  const isOpen =
+    farmDialog === 'scroll-mpd' || farmDialog === 'scroll-wip' || farmDialog === 'scroll-pt'
+
+  // Sync initial page when opened from a specific scroll
+  useEffect(() => {
+    if (farmDialog === 'scroll-mpd') setIdx(0)
+    else if (farmDialog === 'scroll-wip') setIdx(1)
+    else if (farmDialog === 'scroll-pt') setIdx(2)
+  }, [farmDialog])
+
+  if (!isOpen) return null
+
+  function go(next: number) {
+    setDir(next > idx ? 1 : -1)
+    setIdx(next)
+  }
+
+  const pageKey = PAGES[idx].key
 
   return (
     <div
@@ -338,7 +390,7 @@ export function CostScrollModal() {
 
         {/* Paper */}
         <div style={PAPER}>
-          {/* Red margin line */}
+          {/* Red margin line — always visible */}
           <div
             style={{
               position: 'absolute',
@@ -349,72 +401,121 @@ export function CostScrollModal() {
               background: '#d83838',
               opacity: 0.7,
               pointerEvents: 'none',
+              zIndex: 2,
             }}
           />
 
-          <div style={{ padding: '18px 20px 24px 58px' }}>
-            {/* Close button */}
-            <button
-              onClick={() => setFarmDialog(null)}
-              style={{
-                position: 'absolute',
-                top: '10px',
-                right: '10px',
-                width: '28px',
-                height: '28px',
-                borderRadius: '50%',
-                background: '#8b4020',
-                color: '#ffecd0',
-                border: '2px solid #6a2c12',
-                fontFamily: "'Kalam', cursive",
-                fontSize: '14px',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1,
-              }}
-            >
-              ✕
-            </button>
+          {/* Close ✕ */}
+          <button
+            onClick={() => setFarmDialog(null)}
+            style={{
+              position: 'absolute',
+              top: '8px',
+              right: '8px',
+              width: '26px',
+              height: '26px',
+              borderRadius: '50%',
+              background: '#8b4020',
+              color: '#ffecd0',
+              border: '2px solid #6a2c12',
+              fontFamily: "'Kalam', cursive",
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 3,
+            }}
+          >
+            ✕
+          </button>
 
-            {/* Main title */}
+          {/* Fixed header */}
+          <div style={{ padding: '14px 36px 0 58px', flexShrink: 0 }}>
             <h2
               style={{
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: '18px',
+                fontSize: '17px',
                 color: '#3a0e00',
                 borderBottom: '2px solid #3a0e00',
-                paddingBottom: '4px',
-                marginBottom: '12px',
+                paddingBottom: '3px',
+                marginBottom: '0',
                 letterSpacing: '0.03em',
               }}
             >
               Flujo de recursos y costos
             </h2>
+          </div>
 
-            {section === 'mpd' && <MPDContent d={d} />}
-            {section === 'wip' && <WIPContent d={d} />}
-            {section === 'pt' && <PTContent d={d} />}
+          {/* Animated page content */}
+          <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+            <AnimatePresence custom={dir} mode="wait">
+              <motion.div
+                key={pageKey}
+                custom={dir}
+                variants={PAGE_VARIANTS}
+                initial="enter"
+                animate="center"
+                exit="exit"
+                style={{ padding: '10px 20px 12px 58px', willChange: 'transform, opacity' }}
+              >
+                {pageKey === 'mpd' && <MPDContent d={d} />}
+                {pageKey === 'wip' && <WIPContent d={d} />}
+                {pageKey === 'pt' && <PTContent d={d} />}
+              </motion.div>
+            </AnimatePresence>
+          </div>
 
-            {/* Close button at bottom */}
+          {/* Fixed navigation bar */}
+          <div
+            style={{
+              flexShrink: 0,
+              padding: '8px 16px 10px 58px',
+              borderTop: '1px solid #c8a876',
+              background: 'rgba(250,246,228,0.95)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: '8px',
+            }}
+          >
+            {/* Prev */}
             <button
-              onClick={() => setFarmDialog(null)}
-              style={{
-                marginTop: '16px',
-                width: '100%',
-                background: '#8b4020',
-                color: '#ffecd0',
-                border: '2px solid #6a2c12',
-                borderRadius: '6px',
-                padding: '7px 0',
-                fontFamily: "'Fredoka One', cursive",
-                fontSize: '14px',
-                cursor: 'pointer',
-                letterSpacing: '0.05em',
-              }}
+              onClick={() => go(idx - 1)}
+              disabled={idx === 0}
+              style={{ ...NAV_BTN, opacity: idx === 0 ? 0.35 : 1 }}
             >
-              Cerrar y continuar
+              ◀ Anterior
+            </button>
+
+            {/* Page dots */}
+            <div style={{ display: 'flex', gap: '7px', alignItems: 'center' }}>
+              {PAGES.map((p, i) => (
+                <button
+                  key={p.key}
+                  onClick={() => go(i)}
+                  title={p.label}
+                  style={{
+                    width: i === idx ? '24px' : '10px',
+                    height: '10px',
+                    borderRadius: '5px',
+                    background: i === idx ? '#8b4020' : '#c8a88a',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: 0,
+                    transition: 'all 0.2s ease',
+                  }}
+                />
+              ))}
+            </div>
+
+            {/* Next */}
+            <button
+              onClick={() => go(idx + 1)}
+              disabled={idx === PAGES.length - 1}
+              style={{ ...NAV_BTN, opacity: idx === PAGES.length - 1 ? 0.35 : 1 }}
+            >
+              Siguiente ▶
             </button>
           </div>
         </div>
