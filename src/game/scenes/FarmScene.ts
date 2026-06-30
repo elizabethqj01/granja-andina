@@ -1,6 +1,6 @@
 import Phaser from 'phaser'
 import { IsoGrid } from '../objects/IsoGrid'
-import { FarmEntity } from '../objects/FarmEntity'
+
 import { useFarmStore, FARM_GRID, type Chicken, type PlacedCorn } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
@@ -26,7 +26,6 @@ const SZ = {
   corn: 30,
   farmer: 48,
   cornWarehouse: 66,
-  chickenShop: 58,
 } as const
 
 // Chicken sprite sheet layout (128×128 px per frame, 6 cols × 4 rows = 768×512)
@@ -43,18 +42,6 @@ const FARMER_ANIM = {
   collect: { start: 12, end: 15, rate: 7, repeat: 0 },
   carry: { start: 18, end: 23, rate: 8, repeat: -1 },
 } as const
-
-const COLORS = {
-  bg: 0x88c057,
-  tileA: 0x7cb342,
-  tileB: 0x8bc34a,
-  tileLine: 0x558b2f,
-  egg: 0xfff3c4,
-  eggCollecting: 0xffd54f,
-  farmer: 0x6d4c41,
-  corn: 0xfbc02d,
-  chickenShop: 0xc8e6c9,
-}
 
 export class FarmScene extends Phaser.Scene {
   private iso!: IsoGrid
@@ -73,7 +60,6 @@ export class FarmScene extends Phaser.Scene {
   private cornStockBadge!: Phaser.GameObjects.Sprite
   private cornPriceCoin!: Phaser.GameObjects.Sprite
   private cornPriceText!: Phaser.GameObjects.Text
-  private chickenShop!: FarmEntity
   private bgImage!: Phaser.GameObjects.Image
   private tileSprites: Phaser.GameObjects.Image[] = []
   private fenceSprites: Phaser.GameObjects.Image[] = []
@@ -340,15 +326,6 @@ export class FarmScene extends Phaser.Scene {
       .setDepth(33)
       .setVisible(false)
 
-    // Chicken shop — top-left
-    this.chickenShop = new FarmEntity(this, width * 0.11, height * 0.09, {
-      icon: '🐔',
-      label: `Comprar gallina  $${FARM_LEVEL1.chickenBuyPrice}`,
-      color: COLORS.chickenShop,
-      size: SZ.chickenShop,
-      interactive: true,
-    }).onClick(() => useFarmStore.getState().buyChicken())
-
     // Egg warehouse — bottom-right, single interactive sprite
     this.warehouseSprite = this.add
       .sprite(width * 0.86, height * 0.88, 'warehouse', 0)
@@ -423,8 +400,6 @@ export class FarmScene extends Phaser.Scene {
     )
     this.warehouseSprite.setFrame(fillFrame)
     this.warehouseSprite.setAlpha(full ? 0.9 : 1)
-
-    this.chickenShop.setAlpha(farm.chickens.length >= FARM_LEVEL1.maxChickens ? 0.4 : 1)
 
     if (farm.saleState === 'in-transit' && !this.truckAnimating) {
       this.startTruckAnimation()
@@ -1016,7 +991,6 @@ export class FarmScene extends Phaser.Scene {
     this.cornStockBadge.setPosition(width * 0.25 + 105, height * 0.25)
     this.cornPriceCoin.setPosition(width * 0.25 - 26, height * 0.25 - 90)
     this.cornPriceText.setPosition(width * 0.25 - 8, height * 0.25 - 90)
-    this.chickenShop.setPosition(width * 0.11, height * 0.09)
     this.warehouseSprite.setPosition(width * 0.86, height * 0.88)
     this.scrollMPD.setPosition(width * 0.35, height * 0.22)
     this.scrollWIP.setPosition(width * 0.58, height * 0.38)

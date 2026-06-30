@@ -5,6 +5,7 @@ import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import coinUrl from '@/assets/sprites/coin.png'
 import starUrl from '@/assets/sprites/start.png'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
+import chickenSheetUrl from '@/assets/sprites/chicken_sheet.png'
 
 function CoinSprite({ size = 24 }: { size?: number }) {
   const [frame, setFrame] = useState(0)
@@ -23,6 +24,26 @@ function CoinSprite({ size = 24 }: { size?: number }) {
         backgroundPosition: `-${frame * size}px 0`,
         imageRendering: 'pixelated',
         flexShrink: 0,
+      }}
+    />
+  )
+}
+
+function ChickenSprite({ size = 40, dim = false }: { size?: number; dim?: boolean }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: size,
+        height: size,
+        backgroundImage: `url(${chickenSheetUrl})`,
+        // frame 0: idle, col 0 row 0 of 128×128 spritesheet
+        backgroundSize: `${size * 6}px ${size * 4}px`,
+        backgroundPosition: '0 0',
+        imageRendering: 'pixelated',
+        flexShrink: 0,
+        opacity: dim ? 0.35 : 1,
+        transition: 'opacity 0.2s',
       }}
     />
   )
@@ -69,10 +90,10 @@ const TEXT_MAIN: React.CSSProperties = {
 }
 
 const TEXT_LABEL: React.CSSProperties = {
-  color: '#D4956A',
+  color: '#FFE066',
   fontFamily: "'Kalam', cursive",
   fontWeight: 700,
-  textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+  textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
 }
 
 export function LevelHUD() {
@@ -81,25 +102,50 @@ export function LevelHUD() {
   const collected = useFarmStore((s) => s.eggsCollectedTotal)
   const warehouseEggs = useFarmStore((s) => s.warehouseEggs)
   const notification = useFarmStore((s) => s.notification)
+  const chickens = useFarmStore((s) => s.chickens)
+  const buyChicken = useFarmStore((s) => s.buyChicken)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
+
+  const chickensFull = chickens.length >= FARM_LEVEL1.maxChickens
+  const canAfford = cash >= FARM_LEVEL1.chickenBuyPrice
+  const buyDisabled = chickensFull || !canAfford
 
   const stars = starCount(elapsedSec)
   const warehouseFull = warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
-      {/* Top-left — animal roster */}
-      <div
-        className="pointer-events-auto absolute left-3 top-3 flex items-center gap-2 rounded-xl px-3 py-2"
-        style={PANEL_STYLE}
+      {/* Top-left — chicken shop */}
+      <button
+        onClick={buyDisabled ? undefined : buyChicken}
+        disabled={buyDisabled}
+        title={
+          chickensFull
+            ? 'Corral lleno'
+            : !canAfford
+              ? `Necesitas $${FARM_LEVEL1.chickenBuyPrice}`
+              : `Comprar gallina ($${FARM_LEVEL1.chickenBuyPrice})`
+        }
+        className="pointer-events-auto absolute left-3 top-3 flex items-center gap-2 rounded-xl px-3 py-2 transition-transform active:scale-95"
+        style={{
+          ...PANEL_STYLE,
+          cursor: buyDisabled ? 'not-allowed' : 'pointer',
+          filter: buyDisabled ? 'brightness(0.75)' : undefined,
+        }}
       >
-        <div className="flex h-8 w-8 items-center justify-center rounded bg-amber-900/60 text-base">
-          🐔
+        <ChickenSprite size={38} dim={buyDisabled} />
+        <div className="flex flex-col items-start">
+          <span className="text-xs font-bold leading-tight" style={TEXT_LABEL}>
+            {chickensFull ? 'Corral lleno' : 'Comprar gallina'}
+          </span>
+          <span
+            className="flex items-center gap-1 text-sm font-bold leading-tight"
+            style={TEXT_MAIN}
+          >
+            <CoinSprite size={14} />${FARM_LEVEL1.chickenBuyPrice}
+          </span>
         </div>
-        <span className="font-kalam text-xs font-bold" style={TEXT_MAIN}>
-          ×{FARM_LEVEL1.initialChickens}
-        </span>
-      </div>
+      </button>
 
       {/* Top-right — main HUD panel */}
       <div
