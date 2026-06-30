@@ -32,7 +32,7 @@ class FarmEngine {
 
   private tick(): void {
     const farm = useFarmStore.getState()
-    if (farm.levelComplete) return
+    if (farm.levelComplete || farm.levelFailed) return
     // Pause when a blocking dialog (menu / cost-flow) is open.
     if (useUiStore.getState().farmDialog !== null) return
     farm.tick()

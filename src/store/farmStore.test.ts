@@ -34,7 +34,6 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     elapsedSec: 0,
     farmer: { state: 'idle', targetEggId: null },
     cornPurchasedValue: 0,
-    cornConsumedValue: 0,
     modAccrued: 0,
     cifAccrued: 0,
     revenue: 0,
@@ -43,6 +42,7 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
     levelComplete: false,
+    levelFailed: false,
     stars: 0,
     notification: null,
     ...overrides,
@@ -169,7 +169,6 @@ describe('advanceFarm', () => {
     state = advanceFarm(state)
     expect(state.chickens[0].state).toBe('wandering')
     expect(state.placedCorn).toHaveLength(0)
-    expect(state.cornConsumedValue).toBe(FARM_LEVEL1.cornUnitCost)
   })
 
   it('should_layEggAtChickenPosition_when_layAnimTimerElapses', () => {

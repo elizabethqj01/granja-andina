@@ -58,7 +58,6 @@ export interface FarmState {
 
   // Accounting accumulators (ECPV panel — US-3)
   cornPurchasedValue: number
-  cornConsumedValue: number
   modAccrued: number
   cifAccrued: number
   revenue: number
@@ -70,6 +69,7 @@ export interface FarmState {
   pendingSaleEggs: number
 
   levelComplete: boolean
+  levelFailed: boolean
   stars: LevelStars
 }
 
@@ -193,7 +193,6 @@ function initialFarmState(): FarmState {
     elapsedSec: 0,
     farmer: { state: 'idle', targetEggId: null },
     cornPurchasedValue: 0,
-    cornConsumedValue: 0,
     modAccrued: 0,
     cifAccrued: 0,
     revenue: 0,
@@ -202,6 +201,7 @@ function initialFarmState(): FarmState {
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
     levelComplete: false,
+    levelFailed: false,
     stars: 0,
     notification: null,
   }
@@ -210,7 +210,7 @@ function initialFarmState(): FarmState {
 // ── Pure simulation step ──────────────────────────────────────────────────────
 
 export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
-  if (state.levelComplete) return state
+  if (state.levelComplete || state.levelFailed) return state
 
   const next: FarmState = {
     ...state,
@@ -283,7 +283,6 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         if (corn.remainingEnergy <= 0) {
           // Corn fully depleted — remove and charge cost
           next.placedCorn = next.placedCorn.filter((c) => c.id !== chicken.targetCornId)
-          next.cornConsumedValue += cfg.cornUnitCost
           chicken.state = 'wandering'
           chicken.targetCornId = null
           chicken.eatTimerSec = 0
@@ -367,6 +366,14 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
   // Remove chickens whose death fade animation has completed (2 s after death)
   next.chickens = next.chickens.filter((c) => !c.dead || c.deadTimerSec < 2)
 
+  // Detect stuck state: no living chickens and no eggs left on the field
+  if (!next.levelComplete && !next.levelFailed) {
+    const livingChickens = next.chickens.filter((c) => !c.dead)
+    if (livingChickens.length === 0 && next.groundEggs.length === 0) {
+      next.levelFailed = true
+    }
+  }
+
   // 3) Age non-collected eggs; remove those that have spoiled
   next.groundEggs = next.groundEggs
     .map((e) => (e.collecting ? e : { ...e, ageTimerSec: e.ageTimerSec + 1 }))
@@ -381,8 +388,10 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
       egg.collectElapsedSec += 1
       if (egg.collectElapsedSec >= cfg.farmerCollectTimeSec) {
         next.groundEggs = next.groundEggs.filter((e) => e.id !== egg.id)
-        if (next.warehouseEggs < cfg.maxWarehouseEggs) next.warehouseEggs += 1
-        next.eggsCollectedTotal += 1
+        if (next.warehouseEggs < cfg.maxWarehouseEggs) {
+          next.warehouseEggs += 1
+          next.eggsCollectedTotal += 1
+        }
         next.farmer = { state: 'idle', targetEggId: null }
       }
     }

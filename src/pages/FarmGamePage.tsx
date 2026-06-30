@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { FarmGameCanvas } from '@/game/FarmGameCanvas'
 import { LevelHUD } from '@/features/level/components/LevelHUD'
 import { LevelCompleteModal } from '@/features/level/components/LevelCompleteModal'
+import { GameOverModal } from '@/features/level/components/GameOverModal'
 import { InGameMenu } from '@/features/level/components/InGameMenu'
 import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
 import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
@@ -56,6 +57,7 @@ export function FarmGamePage() {
         onExit={handleExit}
       />
       <LevelCompleteModal onRetry={handleRestart} onExit={handleExit} />
+      <GameOverModal onRetry={handleRestart} onExit={handleExit} />
     </div>
   )
 }
