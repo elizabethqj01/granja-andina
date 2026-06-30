@@ -12,7 +12,6 @@ function fmt(n: number): string {
 
 function useCostData() {
   const cornPurchasedValue = useFarmStore((s) => s.cornPurchasedValue)
-  const cornConsumedValue = useFarmStore((s) => s.cornConsumedValue)
   const cornStock = useFarmStore((s) => s.cornStock)
   const modAccrued = useFarmStore((s) => s.modAccrued)
   const cifAccrued = useFarmStore((s) => s.cifAccrued)
@@ -27,7 +26,7 @@ function useCostData() {
   const comprasMPD = cornPurchasedValue
   const disponibleMPD = invInicialMPD + comprasMPD
   const invFinalMPD = cornStock * FARM_LEVEL1.cornUnitCost
-  const costoMPD = cornConsumedValue // authoritative — tracked as corn is consumed
+  const costoMPD = disponibleMPD - invFinalMPD // canonical ECPV: compras − inv.final
 
   // Conversion
   const mod = modAccrued
