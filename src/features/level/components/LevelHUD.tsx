@@ -232,16 +232,6 @@ export function LevelHUD() {
         </div>
       </div>
 
-      {/* Bottom-center — cost flow button */}
-      <div className="pointer-events-auto absolute bottom-3 left-1/2 -translate-x-1/2">
-        <button
-          onClick={() => setFarmDialog('cost-flow')}
-          className="rounded-lg bg-amber-500 px-4 py-2 text-sm font-bold text-black shadow-md transition-transform hover:scale-105"
-        >
-          📊 Flujo de Costos
-        </button>
-      </div>
-
       {/* Bottom-left — menu button */}
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
