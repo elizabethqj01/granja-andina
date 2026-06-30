@@ -94,7 +94,7 @@ export const useUiStore = create<UiStore>((set, get) => {
     nextFarmTutorialStep: () => {
       const step = get().farmTutorialStep
       if (step === null) return
-      if (step >= 4) {
+      if (step >= 6) {
         localStorage.setItem(FARM_TUTORIAL_KEY, 'true')
         set({ farmTutorialStep: null, farmTutorialDone: true })
       } else {

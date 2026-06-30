@@ -11,12 +11,12 @@ interface Step {
   title: string
   body: string
   sub?: string
-  advance: (farm: FarmState) => boolean
+  // auto-advance: evaluates farm state. manualAdvance: player clicks "Siguiente"
+  advance: ((farm: FarmState) => boolean) | 'manual'
 }
 
 const STEPS: Step[] = [
   {
-    // Corn warehouse is at ~24% x, 24% y of the canvas (LAYOUT.cornWarehouse)
     pulse: { x: '24%', y: '24%' },
     card: { x: '32%', y: '14%', anchor: 'left' },
     title: '🌽 Compra maíz',
@@ -25,7 +25,6 @@ const STEPS: Step[] = [
     advance: (farm) => farm.cornStock > 0,
   },
   {
-    // Farm grid center
     pulse: { x: '50%', y: '54%' },
     card: { x: '18%', y: '36%', anchor: 'left' },
     title: '📍 Coloca el maíz en el campo',
@@ -34,7 +33,6 @@ const STEPS: Step[] = [
     advance: (farm) => farm.placedCorn.length > 0,
   },
   {
-    // No specific pulse — just wait
     pulse: { x: '50%', y: '54%' },
     card: { x: '50%', y: '8%', anchor: 'center' },
     title: '⏳ ¡Bien! Espera a que la gallina ponga un huevo',
@@ -42,7 +40,6 @@ const STEPS: Step[] = [
     advance: (farm) => farm.groundEggs.length > 0,
   },
   {
-    // Egg appears somewhere in the field
     pulse: { x: '50%', y: '54%' },
     card: { x: '18%', y: '55%', anchor: 'left' },
     title: '🥚 ¡Haz clic en el huevo!',
@@ -50,7 +47,7 @@ const STEPS: Step[] = [
     advance: (farm) => farm.eggsCollectedTotal > 0,
   },
   {
-    // Egg warehouse is at ~86% x, 88% y (LAYOUT.warehouseSprite)
+    // Egg warehouse at ~86% x, 88% y (LAYOUT.warehouseSprite)
     pulse: { x: '86%', y: '82%' },
     card: { x: '54%', y: '68%', anchor: 'right' },
     title: '💰 Vende los huevos',
@@ -58,9 +55,27 @@ const STEPS: Step[] = [
     sub: '$10 por huevo',
     advance: (farm) => farm.eggsSold > 0,
   },
+  {
+    // Chicken shop button is at top-left of the HUD (absolute left-3 top-3)
+    pulse: { x: '9%', y: '7%' },
+    card: { x: '2%', y: '15%', anchor: 'left' },
+    title: '🐔 Compra más gallinas',
+    body: 'Con el dinero de las ventas puedes comprar gallinas adicionales para producir más huevos.',
+    sub: '$100 por gallina · máx. 4',
+    advance: 'manual',
+  },
+  {
+    // Scroll MPD button at ~18% x, 22% y (LAYOUT.scrollMPD)
+    pulse: { x: '18%', y: '22%' },
+    card: { x: '26%', y: '12%', anchor: 'left' },
+    title: '📜 Estado de costos',
+    body: 'Estos tres pergaminos muestran en tiempo real el flujo de costos: Materias primas, Producción y Productos terminados.',
+    sub: '¡Todo lo que haces en la granja se refleja aquí!',
+    advance: 'manual',
+  },
 ]
 
-const TOTAL = STEPS.length
+export const TUTORIAL_STEP_COUNT = STEPS.length
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
@@ -75,7 +90,6 @@ function PulseRing({ x, y }: { x: string; y: string }) {
         pointerEvents: 'none',
       }}
     >
-      {/* Static ring */}
       <div
         style={{
           width: 48,
@@ -86,7 +100,6 @@ function PulseRing({ x, y }: { x: string; y: string }) {
           inset: 0,
         }}
       />
-      {/* Expanding ring */}
       <motion.div
         style={{
           width: 48,
@@ -107,11 +120,14 @@ interface CardProps {
   step: Step
   stepIndex: number
   onSkip: () => void
+  onNext: () => void
 }
 
-function TutorialCard({ step, stepIndex, onSkip }: CardProps) {
+function TutorialCard({ step, stepIndex, onSkip, onNext }: CardProps) {
   const translateX =
     step.card.anchor === 'center' ? '-50%' : step.card.anchor === 'right' ? '-100%' : '0%'
+  const isManual = step.advance === 'manual'
+  const isLast = stepIndex === TUTORIAL_STEP_COUNT - 1
 
   return (
     <motion.div
@@ -125,11 +141,11 @@ function TutorialCard({ step, stepIndex, onSkip }: CardProps) {
         left: step.card.x,
         top: step.card.y,
         transform: `translateX(${translateX})`,
-        width: '210px',
+        width: '220px',
         background: 'rgba(30, 14, 4, 0.92)',
         border: '2px solid rgba(255, 224, 102, 0.5)',
         borderRadius: '12px',
-        padding: '10px 12px 8px',
+        padding: '10px 12px 10px',
         backdropFilter: 'blur(4px)',
         boxShadow: '0 4px 20px rgba(0,0,0,0.7)',
         pointerEvents: 'auto',
@@ -151,7 +167,7 @@ function TutorialCard({ step, stepIndex, onSkip }: CardProps) {
             color: 'rgba(255,224,102,0.6)',
           }}
         >
-          {stepIndex + 1} / {TOTAL}
+          {stepIndex + 1} / {TUTORIAL_STEP_COUNT}
         </span>
         <button
           onClick={onSkip}
@@ -165,7 +181,7 @@ function TutorialCard({ step, stepIndex, onSkip }: CardProps) {
             padding: '0 2px',
           }}
         >
-          Saltar tutorial
+          Saltar
         </button>
       </div>
 
@@ -204,6 +220,29 @@ function TutorialCard({ step, stepIndex, onSkip }: CardProps) {
           {step.sub}
         </p>
       )}
+
+      {/* Manual-advance button */}
+      {isManual && (
+        <button
+          onClick={onNext}
+          style={{
+            marginTop: '10px',
+            width: '100%',
+            padding: '6px',
+            borderRadius: '8px',
+            background: isLast
+              ? 'linear-gradient(135deg, #c47b2b, #e8a040)'
+              : 'rgba(255,224,102,0.15)',
+            border: `1px solid ${isLast ? '#f5c060' : 'rgba(255,224,102,0.4)'}`,
+            fontFamily: "'Fredoka One', cursive",
+            fontSize: '13px',
+            color: '#FFF3D0',
+            cursor: 'pointer',
+          }}
+        >
+          {isLast ? '¡Entendido! ✓' : 'Siguiente ▶'}
+        </button>
+      )}
     </motion.div>
   )
 }
@@ -216,7 +255,6 @@ export function TutorialOverlay() {
   const nextFarmTutorialStep = useUiStore((s) => s.nextFarmTutorialStep)
   const skipFarmTutorial = useUiStore((s) => s.skipFarmTutorial)
 
-  // Subscribe to the exact farm values each step needs
   const cornStock = useFarmStore((s) => s.cornStock)
   const placedCornLen = useFarmStore((s) => s.placedCorn.length)
   const groundEggsLen = useFarmStore((s) => s.groundEggs.length)
@@ -225,11 +263,11 @@ export function TutorialOverlay() {
   const levelComplete = useFarmStore((s) => s.levelComplete)
   const levelFailed = useFarmStore((s) => s.levelFailed)
 
-  // Auto-advance when the current step's condition is met
+  // Auto-advance when the current step's condition is met (only for non-manual steps)
   useEffect(() => {
     if (farmTutorialStep === null) return
     const step = STEPS[farmTutorialStep]
-    if (!step) return
+    if (!step || step.advance === 'manual') return
     const farm = useFarmStore.getState()
     if (step.advance(farm)) nextFarmTutorialStep()
   }, [
@@ -242,14 +280,13 @@ export function TutorialOverlay() {
     nextFarmTutorialStep,
   ])
 
-  // Dismiss tutorial when level ends (complete or failed)
+  // Dismiss tutorial when level ends
   useEffect(() => {
     if ((levelComplete || levelFailed) && farmTutorialStep !== null) {
       skipFarmTutorial()
     }
   }, [levelComplete, levelFailed, farmTutorialStep, skipFarmTutorial])
 
-  // Hide while a blocking dialog is open (modal on top, tutorial would be confusing)
   const hidden = farmDialog !== null || farmTutorialStep === null
   if (hidden) return null
 
@@ -267,6 +304,7 @@ export function TutorialOverlay() {
           step={step}
           stepIndex={farmTutorialStep}
           onSkip={skipFarmTutorial}
+          onNext={nextFarmTutorialStep}
         />
       </AnimatePresence>
     </div>
