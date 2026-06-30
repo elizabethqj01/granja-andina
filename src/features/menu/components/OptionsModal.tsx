@@ -28,9 +28,15 @@ interface OptionsModalProps {
 }
 
 export function OptionsModal({ onClose }: OptionsModalProps) {
-  const { theme, toggleTheme } = useUiStore()
+  const { theme, toggleTheme, farmTutorialDone, resetFarmTutorial } = useUiStore()
   const { playerName } = usePlayerStore()
   const [audioEnabled, setAudioEnabled] = useState(audioManager.isEnabled)
+  const [tutorialReset, setTutorialReset] = useState(false)
+
+  function handleResetTutorial() {
+    resetFarmTutorial()
+    setTutorialReset(true)
+  }
 
   function handleAudioToggle() {
     setAudioEnabled(audioManager.toggle())
@@ -127,6 +133,29 @@ export function OptionsModal({ onClose }: OptionsModalProps) {
                 }}
               >
                 {theme === 'dark' ? '🌙 Oscuro' : '☀️ Claro'}
+              </button>
+            </Row>
+            <Row label="Tutorial">
+              <button
+                onClick={handleResetTutorial}
+                disabled={!farmTutorialDone && !tutorialReset}
+                style={{
+                  padding: '4px 12px',
+                  borderRadius: '8px',
+                  background: tutorialReset
+                    ? 'rgba(80,160,60,0.35)'
+                    : farmTutorialDone
+                      ? 'rgba(0,0,0,0.4)'
+                      : 'rgba(0,0,0,0.2)',
+                  border: `1px solid ${tutorialReset ? '#6fcf5a' : 'rgba(255,224,102,0.4)'}`,
+                  fontFamily: "'Kalam', cursive",
+                  fontSize: '12px',
+                  cursor: farmTutorialDone ? 'pointer' : 'default',
+                  opacity: !farmTutorialDone && !tutorialReset ? 0.45 : 1,
+                  ...TEXT_MAIN,
+                }}
+              >
+                {tutorialReset ? '✓ Listo' : farmTutorialDone ? '🔄 Repetir' : 'Sin completar'}
               </button>
             </Row>
           </div>

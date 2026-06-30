@@ -209,21 +209,28 @@ function initialFarmState(): FarmState {
 
 // ── Pure simulation step ──────────────────────────────────────────────────────
 
-export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
+export function advanceFarm(
+  state: FarmState,
+  cfg = FARM_LEVEL1,
+  tutorialActive = false
+): FarmState {
   if (state.levelComplete || state.levelFailed) return state
 
   const next: FarmState = {
     ...state,
-    elapsedSec: state.elapsedSec + 1,
+    // Timer and costs are frozen during tutorial so they don't penalise the student
+    elapsedSec: tutorialActive ? state.elapsedSec : state.elapsedSec + 1,
     chickens: state.chickens.map((c) => ({ ...c })),
     groundEggs: state.groundEggs.map((e) => ({ ...e })),
     placedCorn: state.placedCorn.map((c) => ({ ...c })),
     farmer: { ...state.farmer },
   }
 
-  // 1) Accruals
-  next.cifAccrued += cfg.cifCostPerSec
-  if (next.farmer.state === 'working') next.modAccrued += cfg.modCostPerSec
+  // 1) Accruals — skipped while tutorial is active
+  if (!tutorialActive) {
+    next.cifAccrued += cfg.cifCostPerSec
+    if (next.farmer.state === 'working') next.modAccrued += cfg.modCostPerSec
+  }
 
   // 2) Chicken AI
   //    Energy drains over time always (not from laying eggs).
@@ -237,8 +244,10 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
       continue
     }
 
-    // Energy drain — happens every tick regardless of state
-    chicken.energy = Math.max(0, chicken.energy - cfg.chickenEnergyDrainPerSec)
+    // Energy drain — frozen during tutorial so the chicken can't die while learning
+    if (!tutorialActive) {
+      chicken.energy = Math.max(0, chicken.energy - cfg.chickenEnergyDrainPerSec)
+    }
 
     // A chicken actively eating or seeking corn cannot die immediately —
     // eating will restore energy within the same tick's state machine.
@@ -416,7 +425,7 @@ interface FarmStore extends FarmState {
   initSale: (eggCount: number, chickenCount: number) => void
   completeSale: () => void
   buyChicken: () => void
-  tick: () => void
+  tick: (tutorialActive?: boolean) => void
   clearNotification: () => void
 }
 
@@ -564,6 +573,6 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       })
     },
 
-    tick: () => set((s) => advanceFarm(s)),
+    tick: (tutorialActive = false) => set((s) => advanceFarm(s, FARM_LEVEL1, tutorialActive)),
   }
 })

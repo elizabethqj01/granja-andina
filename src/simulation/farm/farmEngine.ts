@@ -35,7 +35,8 @@ class FarmEngine {
     if (farm.levelComplete || farm.levelFailed) return
     // Pause when a blocking dialog (menu / cost-flow) is open.
     if (useUiStore.getState().farmDialog !== null) return
-    farm.tick()
+    const tutorialActive = useUiStore.getState().farmTutorialStep !== null
+    farm.tick(tutorialActive)
   }
 }
 

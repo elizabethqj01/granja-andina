@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FarmGameCanvas } from '@/game/FarmGameCanvas'
 import { LevelHUD } from '@/features/level/components/LevelHUD'
@@ -9,6 +9,7 @@ import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
 import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
 import { SellModal } from '@/features/level/components/SellModal'
 import { CostScrollModal } from '@/features/level/components/CostScrollModal'
+import { TutorialOverlay } from '@/features/education/TutorialOverlay'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
 
@@ -19,6 +20,9 @@ import { useUiStore } from '@/store/uiStore'
 export function FarmGamePage() {
   const navigate = useNavigate()
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
+  const farmDialog = useUiStore((s) => s.farmDialog)
+  const startFarmTutorial = useUiStore((s) => s.startFarmTutorial)
+  const prevDialogRef = useRef<string | null>(null)
 
   useEffect(() => {
     // Start fresh and pause on the objectives intro until the player begins.
@@ -30,6 +34,14 @@ export function FarmGamePage() {
       setFarmDialog(null)
     }
   }, [setFarmDialog])
+
+  // Start tutorial the moment the player closes the intro modal
+  useEffect(() => {
+    if (prevDialogRef.current === 'objectives' && farmDialog === null) {
+      startFarmTutorial()
+    }
+    prevDialogRef.current = farmDialog
+  }, [farmDialog, startFarmTutorial])
 
   function handleRestart() {
     // Re-init AND re-start the clock, then drop straight back into play.
@@ -47,6 +59,7 @@ export function FarmGamePage() {
     <div className="relative h-screen w-screen overflow-hidden bg-surface-primary">
       <FarmGameCanvas />
       <LevelHUD />
+      <TutorialOverlay />
       <LevelIntroModal />
       <SellModal />
       <CostScrollModal />

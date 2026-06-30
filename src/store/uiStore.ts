@@ -27,6 +27,7 @@ export type FarmDialog =
 
 const THEME_KEY = 'costflow_theme'
 const ONBOARDING_KEY = 'costflow_onboarding_done'
+const FARM_TUTORIAL_KEY = 'costflow_farm_tutorial_done'
 
 function loadTheme(): Theme {
   const saved = localStorage.getItem(THEME_KEY) as Theme | null
@@ -43,6 +44,8 @@ interface UiStore {
   theme: Theme
   onboardingStep: number | null // null = done, 0-4 = active step
   farmDialog: FarmDialog // open blocking dialog in the farm level (pauses sim)
+  farmTutorialStep: number | null // null = inactive; 0-4 = active step
+  farmTutorialDone: boolean
   setActivePanel: (id: PanelId) => void
   closePanel: () => void
   toggleTheme: () => void
@@ -50,6 +53,10 @@ interface UiStore {
   startOnboarding: () => void
   finishOnboarding: () => void
   setFarmDialog: (dialog: FarmDialog) => void
+  startFarmTutorial: () => void
+  nextFarmTutorialStep: () => void
+  skipFarmTutorial: () => void
+  resetFarmTutorial: () => void
 }
 
 export const useUiStore = create<UiStore>((set, get) => {
@@ -57,12 +64,15 @@ export const useUiStore = create<UiStore>((set, get) => {
   applyTheme(initialTheme)
 
   const onboardingDone = localStorage.getItem(ONBOARDING_KEY) === 'true'
+  const farmTutorialDone = localStorage.getItem(FARM_TUTORIAL_KEY) === 'true'
 
   return {
     activePanel: null,
     theme: initialTheme,
     onboardingStep: onboardingDone ? null : 0,
     farmDialog: null,
+    farmTutorialStep: null,
+    farmTutorialDone,
     setActivePanel: (id) => set({ activePanel: id }),
     closePanel: () => set({ activePanel: null }),
     setFarmDialog: (dialog) => set({ farmDialog: dialog }),
@@ -76,6 +86,28 @@ export const useUiStore = create<UiStore>((set, get) => {
     finishOnboarding: () => {
       localStorage.setItem(ONBOARDING_KEY, 'true')
       set({ onboardingStep: null })
+    },
+    startFarmTutorial: () => {
+      if (get().farmTutorialDone) return
+      set({ farmTutorialStep: 0 })
+    },
+    nextFarmTutorialStep: () => {
+      const step = get().farmTutorialStep
+      if (step === null) return
+      if (step >= 4) {
+        localStorage.setItem(FARM_TUTORIAL_KEY, 'true')
+        set({ farmTutorialStep: null, farmTutorialDone: true })
+      } else {
+        set({ farmTutorialStep: step + 1 })
+      }
+    },
+    skipFarmTutorial: () => {
+      localStorage.setItem(FARM_TUTORIAL_KEY, 'true')
+      set({ farmTutorialStep: null, farmTutorialDone: true })
+    },
+    resetFarmTutorial: () => {
+      localStorage.removeItem(FARM_TUTORIAL_KEY)
+      set({ farmTutorialStep: null, farmTutorialDone: false })
     },
   }
 })
