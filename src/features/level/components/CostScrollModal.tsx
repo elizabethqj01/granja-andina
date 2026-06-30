@@ -279,19 +279,19 @@ const PAGES = [
 ] as const
 
 const PAGE_VARIANTS = {
-  enter: (dir: number) => ({
-    x: dir >= 0 ? '55%' : '-55%',
-    opacity: 0,
-  }),
+  enter: (dir: number) => ({ x: dir >= 0 ? '100%' : '-100%', opacity: 0 }),
   center: {
     x: 0,
     opacity: 1,
-    transition: { duration: 0.25, ease: [0.25, 0.46, 0.45, 0.94] },
+    transition: {
+      x: { duration: 0.3, ease: [0.25, 0.46, 0.45, 0.94] },
+      opacity: { duration: 0.2 },
+    },
   },
   exit: (dir: number) => ({
-    x: dir >= 0 ? '-55%' : '55%',
+    x: dir >= 0 ? '-100%' : '100%',
     opacity: 0,
-    transition: { duration: 0.18, ease: 'easeIn' },
+    transition: { x: { duration: 0.25, ease: [0.55, 0, 1, 0.45] }, opacity: { duration: 0.15 } },
   }),
 }
 
@@ -448,7 +448,7 @@ export function CostScrollModal() {
           </div>
 
           {/* Animated page content */}
-          <div style={{ flex: 1, overflowY: 'auto', position: 'relative' }}>
+          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
             <AnimatePresence custom={dir} mode="wait">
               <motion.div
                 key={pageKey}
