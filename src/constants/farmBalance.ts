@@ -1,25 +1,21 @@
-/**
- * Farm pivot — Level 1 economic & timing balance.
- *
- * Confirmed by product: objective = 4 eggs, no time limit, stars by elapsed time.
- * Remaining economic values are developer-proposed and tunable after playtest.
- */
 export const FARM_LEVEL1 = {
-  // ── Objective & stars (confirmed) ──────────────────────────────────────────
+  // ── Objective & stars ──────────────────────────────────────────────────────
   objectiveEggs: 4,
+  objectiveChickens: 0, // 0 = no chicken objective
   initialChickens: 1,
+  initialCornStock: 0,
   timeLimitSec: null as number | null,
   starThresholdsSec: { three: 60, two: 120 },
 
-  // ── Economy (developer-proposed, tunable) ──────────────────────────────────
+  // ── Economy ────────────────────────────────────────────────────────────────
   initialCash: 190,
   cornUnitCost: 4,
-  cornPerRecharge: 5, // batch of 5 corn per warehouse click
+  cornPerRecharge: 5,
   eggSellPrice: 10,
 
   // ── Production & labor timing (seconds) ────────────────────────────────────
-  eggLayTimeSec: 8, // ticks from eating corn to laying egg
-  farmerCollectTimeSec: 3, // ticks to pick up and deposit one egg
+  eggLayTimeSec: 8,
+  farmerCollectTimeSec: 3,
   modCostPerSec: 5,
   cifCostPerSec: 2,
 
@@ -35,19 +31,68 @@ export const FARM_LEVEL1 = {
   maxChickens: 4,
 
   // ── Chicken energy system ──────────────────────────────────────────────────
-  chickenMaxEnergy: 8, // full energy bar
-  chickenHungerThreshold: 3, // below this the chicken seeks corn
-  chickenEnergyDrainPerSec: 0.5, // drains to 0 in ~46 s
-  chickenCornEnergyRestore: 15, // energy restored per corn eaten (capped at max)
-  eggLayAnimSec: 2, // how long the laying animation lasts before egg drops
-  cornEatDurationSec: 3, // how long a chicken takes to eat corn (progressive)
+  chickenMaxEnergy: 8,
+  chickenHungerThreshold: 3,
+  chickenEnergyDrainPerSec: 0.5,
+  chickenCornEnergyRestore: 15,
+  eggLayAnimSec: 2,
+  cornEatDurationSec: 3,
 
-  // ── Visual / rendering (tunable without touching scene code) ──────────────
-  chickenScale: 0.52, // sprite scale (128px frame → ~66px on screen)
-  chickenLerpSpeed: 0.12, // fraction of distance closed per frame (~0.5 s to reach tile)
-  chickenHungerLerpSpeed: 0.06, // slower lerp when seeking (spreads 2-tile jump over full second)
-  farmerScale: 0.78, // sprite scale (128px frame → ~100px on screen)
-  farmerLerpSpeed: 0.07, // slower lerp so animations are visible
+  // ── Visual / rendering ─────────────────────────────────────────────────────
+  chickenScale: 0.52,
+  chickenLerpSpeed: 0.12,
+  chickenHungerLerpSpeed: 0.06,
+  farmerScale: 0.78,
+  farmerLerpSpeed: 0.07,
 } as const
 
-export type FarmLevelConfig = typeof FARM_LEVEL1
+export const FARM_LEVEL2 = {
+  ...FARM_LEVEL1,
+  // ── Objectives ─────────────────────────────────────────────────────────────
+  objectiveEggs: 11,
+  objectiveChickens: 5, // need 5 living chickens simultaneously
+  initialChickens: 2,
+  initialCornStock: 5, // starts with a full corn batch
+  starThresholdsSec: { three: 180, two: 240 },
+
+  // ── Economy ────────────────────────────────────────────────────────────────
+  initialCash: 190,
+  maxChickens: 6,
+} as const
+
+export interface FarmLevelConfig {
+  objectiveEggs: number
+  objectiveChickens: number
+  initialChickens: number
+  initialCornStock: number
+  timeLimitSec: number | null
+  starThresholdsSec: { readonly three: number; readonly two: number }
+  initialCash: number
+  cornUnitCost: number
+  cornPerRecharge: number
+  eggSellPrice: number
+  eggLayTimeSec: number
+  farmerCollectTimeSec: number
+  modCostPerSec: number
+  cifCostPerSec: number
+  maxGroundEggs: number
+  eggSpoilTimeSec: number
+  maxWarehouseEggs: number
+  chickenWanderIntervalSec: number
+  chickenBuyPrice: number
+  chickenSellPrice: number
+  maxChickens: number
+  chickenMaxEnergy: number
+  chickenHungerThreshold: number
+  chickenEnergyDrainPerSec: number
+  chickenCornEnergyRestore: number
+  eggLayAnimSec: number
+  cornEatDurationSec: number
+  chickenScale: number
+  chickenLerpSpeed: number
+  chickenHungerLerpSpeed: number
+  farmerScale: number
+  farmerLerpSpeed: number
+}
+
+export type LevelId = 1 | 2

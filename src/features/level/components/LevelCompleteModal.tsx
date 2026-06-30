@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore, type FarmDialog } from '@/store/uiStore'
-import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 import starUrl from '@/assets/sprites/start.png'
 
@@ -79,8 +79,11 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
   const cash = useFarmStore((s) => s.cash)
   const eggsSold = useFarmStore((s) => s.eggsSold)
   const eggsCollectedTotal = useFarmStore((s) => s.eggsCollectedTotal)
+  const activeLevelId = useFarmStore((s) => s.activeLevelId)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const farmDialog = useUiStore((s) => s.farmDialog)
+
+  const cfg: FarmLevelConfig = activeLevelId === 2 ? FARM_LEVEL2 : FARM_LEVEL1
 
   const [reviewed, setReviewed] = useState<Set<string>>(new Set())
 
@@ -125,7 +128,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
               textTransform: 'uppercase',
             }}
           >
-            Nivel 1 — Granja Andina
+            Nivel {activeLevelId} — Granja Andina
           </p>
           <h2
             style={{
@@ -156,7 +159,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
           {[
             {
               label: 'Huevos recolectados',
-              value: `${eggsCollectedTotal} / ${FARM_LEVEL1.objectiveEggs}`,
+              value: `${eggsCollectedTotal} / ${cfg.objectiveEggs}`,
               emoji: '🥚',
             },
             { label: 'Tiempo', value: formatTime(elapsedSec), emoji: '⏱' },

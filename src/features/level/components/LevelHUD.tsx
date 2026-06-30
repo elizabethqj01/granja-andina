@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
-import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
 import coinUrl from '@/assets/sprites/coin.png'
 import starUrl from '@/assets/sprites/start.png'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
@@ -72,9 +72,9 @@ function formatTime(totalSec: number): string {
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
 }
 
-function starCount(elapsedSec: number): number {
-  if (elapsedSec <= FARM_LEVEL1.starThresholdsSec.three) return 3
-  if (elapsedSec <= FARM_LEVEL1.starThresholdsSec.two) return 2
+function starCount(elapsedSec: number, cfg: FarmLevelConfig): number {
+  if (elapsedSec <= cfg.starThresholdsSec.three) return 3
+  if (elapsedSec <= cfg.starThresholdsSec.two) return 2
   return 1
 }
 
@@ -104,14 +104,17 @@ export function LevelHUD() {
   const notification = useFarmStore((s) => s.notification)
   const chickens = useFarmStore((s) => s.chickens)
   const buyChicken = useFarmStore((s) => s.buyChicken)
+  const activeLevelId = useFarmStore((s) => s.activeLevelId)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
 
-  const chickensFull = chickens.length >= FARM_LEVEL1.maxChickens
-  const canAfford = cash >= FARM_LEVEL1.chickenBuyPrice
+  const cfg: FarmLevelConfig = activeLevelId === 2 ? FARM_LEVEL2 : FARM_LEVEL1
+  const livingChickens = chickens.filter((c) => !c.dead).length
+  const chickensFull = chickens.length >= cfg.maxChickens
+  const canAfford = cash >= cfg.chickenBuyPrice
   const buyDisabled = chickensFull || !canAfford
 
-  const stars = starCount(elapsedSec)
-  const warehouseFull = warehouseEggs >= FARM_LEVEL1.maxWarehouseEggs
+  const stars = starCount(elapsedSec, cfg)
+  const warehouseFull = warehouseEggs >= cfg.maxWarehouseEggs
 
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
@@ -123,8 +126,8 @@ export function LevelHUD() {
           chickensFull
             ? 'Corral lleno'
             : !canAfford
-              ? `Necesitas $${FARM_LEVEL1.chickenBuyPrice}`
-              : `Comprar gallina ($${FARM_LEVEL1.chickenBuyPrice})`
+              ? `Necesitas $${cfg.chickenBuyPrice}`
+              : `Comprar gallina ($${cfg.chickenBuyPrice})`
         }
         className="pointer-events-auto absolute left-3 top-3 flex items-center gap-2 rounded-xl px-3 py-2 transition-transform active:scale-95"
         style={{
@@ -142,7 +145,7 @@ export function LevelHUD() {
             className="flex items-center gap-1 text-sm font-bold leading-tight"
             style={TEXT_MAIN}
           >
-            <CoinSprite size={14} />${FARM_LEVEL1.chickenBuyPrice}
+            <CoinSprite size={14} />${cfg.chickenBuyPrice}
           </span>
         </div>
       </button>
@@ -201,12 +204,19 @@ export function LevelHUD() {
           <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
             Objetivo
           </span>
-          <span
-            className="text-sm font-bold"
+          <div
+            className="flex flex-col items-end gap-0.5 text-sm font-bold"
             style={{ ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }}
           >
-            🥚 {collected}/{FARM_LEVEL1.objectiveEggs}
-          </span>
+            <span>
+              🥚 {collected}/{cfg.objectiveEggs}
+            </span>
+            {cfg.objectiveChickens > 0 && (
+              <span>
+                🐔 {livingChickens}/{cfg.objectiveChickens}
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Warehouse */}
@@ -226,7 +236,7 @@ export function LevelHUD() {
                 : { ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }
             }
           >
-            {warehouseEggs}/{FARM_LEVEL1.maxWarehouseEggs}
+            {warehouseEggs}/{cfg.maxWarehouseEggs}
             {warehouseFull && ' 🔴'}
           </span>
         </div>

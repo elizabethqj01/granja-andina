@@ -5,8 +5,7 @@ import type { GameLevel, LevelStars } from '@/types'
 
 const LEVELS: GameLevel[] = [1, 2, 3, 4, 5, 6, 7, 8]
 
-// During the Farm pivot validation phase only Level 1 is playable.
-const MAX_UNLOCKED_LEVEL: GameLevel = 1
+const MAX_UNLOCKED_LEVEL: GameLevel = 2
 
 /**
  * Screen 3 — Level map. A path of nodes; only Level 1 is unlocked for now.

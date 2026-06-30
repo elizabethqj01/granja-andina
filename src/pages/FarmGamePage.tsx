@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
+import type { LevelId } from '@/constants/farmBalance'
 import { FarmGameCanvas } from '@/game/FarmGameCanvas'
 import { LevelHUD } from '@/features/level/components/LevelHUD'
 import { LevelCompleteModal } from '@/features/level/components/LevelCompleteModal'
@@ -19,6 +20,8 @@ import { useUiStore } from '@/store/uiStore'
  */
 export function FarmGamePage() {
   const navigate = useNavigate()
+  const { level } = useParams<{ level: string }>()
+  const levelId = (Number(level) === 2 ? 2 : 1) as LevelId
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const farmDialog = useUiStore((s) => s.farmDialog)
   const startFarmTutorial = useUiStore((s) => s.startFarmTutorial)
@@ -26,7 +29,7 @@ export function FarmGamePage() {
 
   useEffect(() => {
     // Start fresh and pause on the objectives intro until the player begins.
-    farmEngine.reset()
+    farmEngine.reset(levelId)
     farmEngine.start()
     setFarmDialog('objectives')
     return () => {
@@ -44,10 +47,9 @@ export function FarmGamePage() {
   }, [farmDialog, startFarmTutorial])
 
   function handleRestart() {
-    // Re-init AND re-start the clock, then drop straight back into play.
-    farmEngine.reset()
+    farmEngine.reset(levelId)
     farmEngine.start()
-    setFarmDialog(null)
+    setFarmDialog('objectives')
   }
 
   function handleExit() {

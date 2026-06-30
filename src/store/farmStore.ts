@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import type { LevelStars } from '@/types'
-import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import {
+  FARM_LEVEL1,
+  FARM_LEVEL2,
+  type FarmLevelConfig,
+  type LevelId,
+} from '@/constants/farmBalance'
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -45,6 +50,7 @@ export interface Farmer {
 }
 
 export interface FarmState {
+  activeLevelId: LevelId
   cash: number
   cornStock: number
   placedCorn: PlacedCorn[]
@@ -94,6 +100,8 @@ function nextChickenId(): string {
 
 // Module-level timer — cleared/reset whenever a new notification is dispatched
 let notificationTimer: ReturnType<typeof setTimeout> | null = null
+// Active level config — set by initLevel() before each match
+let activeCfg: FarmLevelConfig = FARM_LEVEL1
 
 // ── Pure helpers ─────────────────────────────────────────────────────────────
 
@@ -156,19 +164,18 @@ function findAdjacentFreeTile(
 
 // ── Stars ────────────────────────────────────────────────────────────────────
 
-export function computeStars(elapsedSec: number): LevelStars {
-  const { three, two } = FARM_LEVEL1.starThresholdsSec
-  if (elapsedSec <= three) return 3
-  if (elapsedSec <= two) return 2
+export function computeStars(elapsedSec: number, cfg: FarmLevelConfig = FARM_LEVEL1): LevelStars {
+  if (elapsedSec <= cfg.starThresholdsSec.three) return 3
+  if (elapsedSec <= cfg.starThresholdsSec.two) return 2
   return 1
 }
 
 // ── Initial state ─────────────────────────────────────────────────────────────
 
-function initialFarmState(): FarmState {
+function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId = 1): FarmState {
   const startCol = Math.floor(FARM_GRID.cols / 2)
   const startRow = Math.floor(FARM_GRID.rows / 2)
-  const chickens: Chicken[] = Array.from({ length: FARM_LEVEL1.initialChickens }, () => ({
+  const chickens: Chicken[] = Array.from({ length: cfg.initialChickens }, () => ({
     id: nextChickenId(),
     col: startCol,
     row: startRow,
@@ -176,15 +183,16 @@ function initialFarmState(): FarmState {
     targetCornId: null,
     layTimerSec: 0,
     eatTimerSec: 0,
-    wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
-    energy: FARM_LEVEL1.chickenMaxEnergy,
+    wanderCooldownSec: cfg.chickenWanderIntervalSec,
+    energy: cfg.chickenMaxEnergy,
     dead: false,
     deadTimerSec: 0,
   }))
 
   return {
-    cash: FARM_LEVEL1.initialCash,
-    cornStock: 0,
+    activeLevelId: levelId,
+    cash: cfg.initialCash,
+    cornStock: cfg.initialCornStock,
     placedCorn: [],
     chickens,
     groundEggs: [],
@@ -192,7 +200,7 @@ function initialFarmState(): FarmState {
     eggsCollectedTotal: 0,
     elapsedSec: 0,
     farmer: { state: 'idle', targetEggId: null },
-    cornPurchasedValue: 0,
+    cornPurchasedValue: cfg.initialCornStock * cfg.cornUnitCost,
     modAccrued: 0,
     cifAccrued: 0,
     revenue: 0,
@@ -211,7 +219,7 @@ function initialFarmState(): FarmState {
 
 export function advanceFarm(
   state: FarmState,
-  cfg = FARM_LEVEL1,
+  cfg: FarmLevelConfig = FARM_LEVEL1,
   tutorialActive = false
 ): FarmState {
   if (state.levelComplete || state.levelFailed) return state
@@ -406,10 +414,13 @@ export function advanceFarm(
     }
   }
 
-  // 5) Objective check
-  if (!next.levelComplete && next.eggsCollectedTotal >= cfg.objectiveEggs) {
+  // 5) Objective check — eggs always required; chickens optional (0 = disabled)
+  const livingCount = next.chickens.filter((c) => !c.dead).length
+  const eggsDone = next.eggsCollectedTotal >= cfg.objectiveEggs
+  const chickensDone = cfg.objectiveChickens === 0 || livingCount >= cfg.objectiveChickens
+  if (!next.levelComplete && eggsDone && chickensDone) {
     next.levelComplete = true
-    next.stars = computeStars(next.elapsedSec)
+    next.stars = computeStars(next.elapsedSec, cfg)
   }
 
   return next
@@ -418,7 +429,7 @@ export function advanceFarm(
 // ── Store ─────────────────────────────────────────────────────────────────────
 
 interface FarmStore extends FarmState {
-  initLevel: () => void
+  initLevel: (levelId?: LevelId) => void
   rechargeCorn: () => void
   placeCorn: (col: number, row: number) => void
   requestCollect: (eggId: string) => void
@@ -443,7 +454,8 @@ export const useFarmStore = create<FarmStore>((set, get) => {
   return {
     ...initialFarmState(),
 
-    initLevel: () => {
+    initLevel: (levelId: LevelId = 1) => {
+      activeCfg = levelId === 2 ? FARM_LEVEL2 : FARM_LEVEL1
       eggCounter = 0
       cornCounter = 0
       chickenCounter = 0
@@ -451,7 +463,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         clearTimeout(notificationTimer)
         notificationTimer = null
       }
-      set(initialFarmState())
+      set(initialFarmState(activeCfg, levelId))
     },
 
     clearNotification: () => set({ notification: null }),
@@ -461,14 +473,14 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       const s = get()
       if (s.levelComplete) return
       if (s.cornStock > 0) return
-      const cost = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
+      const cost = activeCfg.cornUnitCost * activeCfg.cornPerRecharge
       if (s.cash < cost) {
         flash('¡Sin fondos! Vende los huevos primero.')
         return
       }
       set({
         cash: s.cash - cost,
-        cornStock: s.cornStock + FARM_LEVEL1.cornPerRecharge,
+        cornStock: s.cornStock + activeCfg.cornPerRecharge,
         cornPurchasedValue: s.cornPurchasedValue + cost,
       })
     },
@@ -482,7 +494,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         cornStock: s.cornStock - 1,
         placedCorn: [
           ...s.placedCorn,
-          { id: nextCornId(), col, row, remainingEnergy: FARM_LEVEL1.chickenCornEnergyRestore },
+          { id: nextCornId(), col, row, remainingEnergy: activeCfg.chickenCornEnergyRestore },
         ],
       })
     },
@@ -509,8 +521,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       if (s.levelComplete || s.saleState !== 'idle') return
       if (eggCount === 0 && chickenCount === 0) return
 
-      const income =
-        eggCount * FARM_LEVEL1.eggSellPrice + chickenCount * FARM_LEVEL1.chickenSellPrice
+      const income = eggCount * activeCfg.eggSellPrice + chickenCount * activeCfg.chickenSellPrice
 
       // Keep at least 1 chicken when selling
       const keepCount = Math.max(1, s.chickens.length - chickenCount)
@@ -542,18 +553,18 @@ export const useFarmStore = create<FarmStore>((set, get) => {
     buyChicken: () => {
       const s = get()
       if (s.levelComplete) return
-      if (s.chickens.length >= FARM_LEVEL1.maxChickens) {
+      if (s.chickens.length >= activeCfg.maxChickens) {
         flash('¡Límite de gallinas alcanzado!')
         return
       }
-      if (s.cash < FARM_LEVEL1.chickenBuyPrice) {
+      if (s.cash < activeCfg.chickenBuyPrice) {
         flash('¡Sin fondos para comprar gallina!')
         return
       }
       const col = Math.floor(Math.random() * FARM_GRID.cols)
       const row = Math.floor(Math.random() * FARM_GRID.rows)
       set({
-        cash: s.cash - FARM_LEVEL1.chickenBuyPrice,
+        cash: s.cash - activeCfg.chickenBuyPrice,
         chickens: [
           ...s.chickens,
           {
@@ -564,8 +575,8 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             targetCornId: null,
             layTimerSec: 0,
             eatTimerSec: 0,
-            wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
-            energy: FARM_LEVEL1.chickenMaxEnergy,
+            wanderCooldownSec: activeCfg.chickenWanderIntervalSec,
+            energy: activeCfg.chickenMaxEnergy,
             dead: false,
             deadTimerSec: 0,
           },
@@ -573,6 +584,6 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       })
     },
 
-    tick: (tutorialActive = false) => set((s) => advanceFarm(s, FARM_LEVEL1, tutorialActive)),
+    tick: (tutorialActive = false) => set((s) => advanceFarm(s, activeCfg, tutorialActive)),
   }
 })

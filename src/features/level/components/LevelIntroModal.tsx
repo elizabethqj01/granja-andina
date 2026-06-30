@@ -1,6 +1,7 @@
 import { motion } from 'framer-motion'
 import { useUiStore } from '@/store/uiStore'
-import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import { useFarmStore } from '@/store/farmStore'
+import { FARM_LEVEL1, FARM_LEVEL2 } from '@/constants/farmBalance'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
 const WOOD: React.CSSProperties = {
@@ -21,10 +22,54 @@ const TEXT_LABEL: React.CSSProperties = {
   textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
 }
 
+const LEVEL_CONTENT = {
+  1: {
+    label: 'Nivel 1 — Granja Andina',
+    objectives: [
+      {
+        icon: '🥚',
+        text: `${FARM_LEVEL1.objectiveEggs} huevos`,
+        sub: 'Recógelos y llévalos al almacén',
+      },
+    ],
+    tips: [
+      '🌽 Recarga maíz para que la gallina ponga huevos.',
+      '🥚 Haz clic en cada huevo para que el granjero lo recoja.',
+      '💰 Vende los huevos en el almacén de productos.',
+    ],
+    starHint: `⭐⭐⭐ menos de 1 min · ⭐⭐ menos de 2 min`,
+  },
+  2: {
+    label: 'Nivel 2 — Granja Andina',
+    objectives: [
+      {
+        icon: '🥚',
+        text: `${FARM_LEVEL2.objectiveEggs} huevos`,
+        sub: 'Recógelos y llévalos al almacén',
+      },
+      {
+        icon: '🐔',
+        text: `${FARM_LEVEL2.objectiveChickens} gallinas`,
+        sub: 'Cría 3 gallinas más para completar el corral',
+      },
+    ],
+    tips: [
+      '🌽 Ya tienes maíz — ¡colócalo de inmediato!',
+      '🐔 Compra gallinas con el dinero de las ventas.',
+      '💰 Los dos objetivos deben cumplirse al mismo tiempo.',
+    ],
+    starHint: `⭐⭐⭐ menos de 3 min · ⭐⭐ menos de 4 min`,
+  },
+} as const
+
 export function LevelIntroModal() {
   const farmDialog = useUiStore((s) => s.farmDialog)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
+  const activeLevelId = useFarmStore((s) => s.activeLevelId)
+
   if (farmDialog !== 'objectives') return null
+
+  const content = LEVEL_CONTENT[activeLevelId]
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -48,7 +93,7 @@ export function LevelIntroModal() {
               marginBottom: '4px',
             }}
           >
-            Nivel 1 — Granja Andina
+            {content.label}
           </p>
           <h2
             style={{
@@ -58,61 +103,61 @@ export function LevelIntroModal() {
               marginBottom: '0',
             }}
           >
-            🎯 Objetivo del nivel
+            🎯 Objetivos del nivel
           </h2>
         </div>
 
-        {/* Objective card */}
+        {/* Objective cards */}
         <div
-          style={{
-            margin: '16px 24px',
-            background: 'rgba(0,0,0,0.3)',
-            borderRadius: '12px',
-            padding: '14px 20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '14px',
-            border: '1px solid rgba(255,224,102,0.2)',
-          }}
+          style={{ margin: '16px 24px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}
         >
-          <span style={{ fontSize: '36px', lineHeight: 1 }}>🥚</span>
-          <div>
-            <p
+          {content.objectives.map((obj) => (
+            <div
+              key={obj.icon}
               style={{
-                fontFamily: "'Fredoka One', cursive",
-                fontSize: '26px',
-                ...TEXT_MAIN,
-                margin: 0,
+                background: 'rgba(0,0,0,0.3)',
+                borderRadius: '12px',
+                padding: '12px 18px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '14px',
+                border: '1px solid rgba(255,224,102,0.2)',
               }}
             >
-              {FARM_LEVEL1.objectiveEggs} huevos
-            </p>
-            <p style={{ ...TEXT_LABEL, fontSize: '11px', margin: 0 }}>
-              Recógelos y llévalos al almacén
-            </p>
-          </div>
+              <span style={{ fontSize: '32px', lineHeight: 1 }}>{obj.icon}</span>
+              <div>
+                <p
+                  style={{
+                    fontFamily: "'Fredoka One', cursive",
+                    fontSize: '22px',
+                    ...TEXT_MAIN,
+                    margin: 0,
+                  }}
+                >
+                  {obj.text}
+                </p>
+                <p style={{ ...TEXT_LABEL, fontSize: '11px', margin: 0 }}>{obj.sub}</p>
+              </div>
+            </div>
+          ))}
         </div>
 
         {/* Tips */}
         <div
-          style={{ margin: '0 24px 16px', display: 'flex', flexDirection: 'column', gap: '6px' }}
+          style={{ margin: '12px 24px 8px', display: 'flex', flexDirection: 'column', gap: '6px' }}
         >
-          {[
-            '🌽 Recarga maíz para que la gallina ponga huevos.',
-            '🥚 Haz clic en cada huevo para que el granjero lo recoja.',
-            '💰 Vende los huevos en el almacén de productos.',
-          ].map((tip) => (
+          {content.tips.map((tip) => (
             <p key={tip} style={{ ...TEXT_MAIN, fontSize: '12px', margin: 0, opacity: 0.85 }}>
               {tip}
             </p>
           ))}
           <p style={{ ...TEXT_LABEL, fontSize: '11px', margin: '4px 0 0', opacity: 0.7 }}>
-            ⭐ Termina rápido para ganar más estrellas.
+            {content.starHint}
           </p>
         </div>
 
         {/* Action */}
-        <div style={{ padding: '0 24px 24px' }}>
+        <div style={{ padding: '8px 24px 24px' }}>
           <button
             onClick={() => setFarmDialog(null)}
             style={{

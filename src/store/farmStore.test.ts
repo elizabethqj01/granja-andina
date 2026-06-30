@@ -24,6 +24,7 @@ const defaultChicken = {
 
 function baseState(overrides: Partial<FarmState> = {}): FarmState {
   return {
+    activeLevelId: 1,
     cash: 1_000,
     cornStock: 0,
     placedCorn: [],

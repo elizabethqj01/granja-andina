@@ -1,5 +1,6 @@
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
+import type { LevelId } from '@/constants/farmBalance'
 
 const TICK_MS = 1_000 // 1 tick = 1 real second (no speed multiplier in Level 1)
 
@@ -25,9 +26,9 @@ class FarmEngine {
     }
   }
 
-  reset(): void {
+  reset(levelId: LevelId = 1): void {
     this.stop()
-    useFarmStore.getState().initLevel()
+    useFarmStore.getState().initLevel(levelId)
   }
 
   private tick(): void {
