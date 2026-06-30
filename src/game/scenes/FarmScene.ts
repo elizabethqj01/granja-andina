@@ -68,6 +68,8 @@ export class FarmScene extends Phaser.Scene {
   private scrollWIP!: Phaser.GameObjects.Container
   private scrollPT!: Phaser.GameObjects.Container
   private cornWarehouseSprite!: Phaser.GameObjects.Sprite
+  private cornTooltip!: Phaser.GameObjects.Text
+  private warehouseTooltip!: Phaser.GameObjects.Text
   private cornStockBadge!: Phaser.GameObjects.Sprite
   private cornPriceCoin!: Phaser.GameObjects.Sprite
   private cornPriceText!: Phaser.GameObjects.Text
@@ -295,6 +297,20 @@ export class FarmScene extends Phaser.Scene {
       this.cornWarehouseSprite.setFrame(1)
       this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
     })
+    this.cornTooltip = this.add
+      .text(width * 0.25, height * 0.25 - 120, '🌽 Tienda de maíz', {
+        fontFamily: 'Kalam',
+        fontSize: '17px',
+        color: '#FFD700',
+        backgroundColor: '#1a0800ee',
+        padding: { x: 10, y: 5 },
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(60)
+      .setVisible(false)
+    this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, 0.75)
 
     this.cornStockBadge = this.add
       .sprite(width * 0.25 + 105, height * 0.25, 'corn_stock_badge', 0)
@@ -337,10 +353,24 @@ export class FarmScene extends Phaser.Scene {
     this.warehouseSprite = this.add
       .sprite(width * 0.86, height * 0.88, 'warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(0.72)
+      .setScale(1.2)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.warehouseSprite.on('pointerdown', () => this.openSellModal())
+    this.warehouseTooltip = this.add
+      .text(width * 0.86, height * 0.88 - 120, '🥚 Almacén de productos', {
+        fontFamily: 'Kalam',
+        fontSize: '17px',
+        color: '#FFD700',
+        backgroundColor: '#1a0800ee',
+        padding: { x: 10, y: 5 },
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
+      .setOrigin(0.5, 1)
+      .setDepth(60)
+      .setVisible(false)
+    this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, 1.2)
 
     // Cost-flow scroll buttons — one at each production stage
     this.scrollMPD = this.createScrollButton(width * 0.35, height * 0.22, 'MPD', 'scroll-mpd')
@@ -519,6 +549,40 @@ export class FarmScene extends Phaser.Scene {
     this.chickenSprites.clear()
     this.chickenHungerBars.clear()
     this.chickenHungerAlerts.clear()
+  }
+
+  // ── Hover effects ──────────────────────────────────────────────────────────
+
+  private addHoverEffect(
+    sprite: Phaser.GameObjects.Sprite,
+    tooltip: Phaser.GameObjects.Text,
+    baseScale: number
+  ): void {
+    sprite.on('pointerover', () => {
+      tooltip.setPosition(sprite.x, sprite.y - sprite.displayHeight * 0.5 - 14)
+      tooltip.setVisible(true)
+      this.tweens.killTweensOf(sprite)
+      this.tweens.add({
+        targets: sprite,
+        scaleX: baseScale * 1.08,
+        scaleY: baseScale * 1.08,
+        duration: 130,
+        ease: 'Back.Out',
+      })
+      sprite.setTint(0xffe090)
+    })
+    sprite.on('pointerout', () => {
+      tooltip.setVisible(false)
+      this.tweens.killTweensOf(sprite)
+      this.tweens.add({
+        targets: sprite,
+        scaleX: baseScale,
+        scaleY: baseScale,
+        duration: 100,
+        ease: 'Quad.Out',
+      })
+      sprite.clearTint()
+    })
   }
 
   // ── Truck animation ────────────────────────────────────────────────────────
@@ -945,6 +1009,8 @@ export class FarmScene extends Phaser.Scene {
     this.tileZones = []
     this.createTileZones()
 
+    this.cornTooltip.setVisible(false)
+    this.warehouseTooltip.setVisible(false)
     this.cornWarehouseSprite.setPosition(width * 0.25, height * 0.25)
     this.cornStockBadge.setPosition(width * 0.25 + 105, height * 0.25)
     this.cornPriceCoin.setPosition(width * 0.25 - 26, height * 0.25 - 90)
