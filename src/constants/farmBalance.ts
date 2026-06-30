@@ -49,7 +49,7 @@ export const FARM_LEVEL1 = {
 export const FARM_LEVEL2 = {
   ...FARM_LEVEL1,
   // ── Objectives ─────────────────────────────────────────────────────────────
-  objectiveEggs: 11,
+  objectiveEggs: 20,
   objectiveChickens: 5, // need 5 living chickens simultaneously
   initialChickens: 2,
   initialCornStock: 5, // starts with a full corn batch
