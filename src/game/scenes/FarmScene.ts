@@ -402,6 +402,7 @@ export class FarmScene extends Phaser.Scene {
 
   update(): void {
     const farm = useFarmStore.getState()
+    this.input.enabled = useUiStore.getState().farmDialog === null
 
     this.reconcileChickens(farm.chickens, farm.placedCorn.length)
     this.reconcilePlacedCorn(farm.placedCorn, farm.chickens)
