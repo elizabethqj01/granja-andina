@@ -434,7 +434,7 @@ export class FarmScene extends Phaser.Scene {
     const farm = useFarmStore.getState()
     this.input.enabled = useUiStore.getState().farmDialog === null
 
-    this.reconcileChickens(farm.chickens, farm.placedCorn.length)
+    this.reconcileChickens(farm.chickens)
     this.reconcilePlacedCorn(farm.placedCorn, farm.chickens)
     this.reconcileEggs(farm.groundEggs)
     this.moveFarmer(farm)
@@ -463,7 +463,7 @@ export class FarmScene extends Phaser.Scene {
 
   // ── Chicken visuals ────────────────────────────────────────────────────────
 
-  private reconcileChickens(chickens: Chicken[], placedCornCount: number): void {
+  private reconcileChickens(chickens: Chicken[]): void {
     const liveIds = new Set(chickens.map((c) => c.id))
 
     for (const [id] of this.chickenSprites) {
@@ -494,7 +494,7 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerBars.set(chicken.id, bar)
 
         const alert = this.add
-          .text(pos.x, pos.y, '🌽 ¡Sin maíz!', {
+          .text(pos.x, pos.y, '😰 ¡Hambre!', {
             fontSize: '13px',
             color: '#ffffff',
             fontFamily: 'Kalam',
@@ -530,9 +530,13 @@ export class FarmScene extends Phaser.Scene {
       // Flip horizontally based on movement direction
       if (Math.abs(dx) > 2) sprite.setFlipX(dx < 0)
 
-      // Lerp toward target tile
-      sprite.x += dx * FARM_LEVEL1.chickenLerpSpeed
-      sprite.y += dy * FARM_LEVEL1.chickenLerpSpeed
+      // Lerp toward target tile — faster when hungry and seeking corn
+      const lerpSpeed =
+        chicken.state === 'seeking'
+          ? FARM_LEVEL1.chickenHungerLerpSpeed
+          : FARM_LEVEL1.chickenLerpSpeed
+      sprite.x += dx * lerpSpeed
+      sprite.y += dy * lerpSpeed
 
       // Animation: wandering uses walk/idle based on actual pixel movement
       const currentAnim = sprite.anims.currentAnim?.key
@@ -547,8 +551,7 @@ export class FarmScene extends Phaser.Scene {
         this.chickenHungerBars.get(chicken.id)!,
         this.chickenHungerAlerts.get(chicken.id)!,
         sprite,
-        chicken,
-        placedCornCount
+        chicken
       )
     }
   }
@@ -557,8 +560,7 @@ export class FarmScene extends Phaser.Scene {
     bar: Phaser.GameObjects.Graphics,
     alert: Phaser.GameObjects.Text,
     sprite: Phaser.GameObjects.Sprite,
-    chicken: Chicken,
-    placedCornCount: number
+    chicken: Chicken
   ): void {
     const energyFrac = chicken.energy / FARM_LEVEL1.chickenMaxEnergy
     const isHungry = chicken.energy <= FARM_LEVEL1.chickenHungerThreshold
@@ -579,10 +581,9 @@ export class FarmScene extends Phaser.Scene {
     bar.lineStyle(1, 0x000000, 0.5)
     bar.strokeRoundedRect(cx - w / 2, top, w, h, 2)
 
-    // Alert when hungry AND no corn available to eat
-    const showAlert = isHungry && placedCornCount === 0
-    alert.setPosition(cx, top - 4).setVisible(showAlert)
-    if (showAlert) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
+    // Alert whenever hungry — so the player always knows which chickens need corn
+    alert.setPosition(cx, top - 4).setVisible(isHungry)
+    if (isHungry) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
   }
 
   private destroyChickenVisuals(): void {

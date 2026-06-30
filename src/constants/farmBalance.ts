@@ -45,6 +45,7 @@ export const FARM_LEVEL1 = {
   // ── Visual / rendering (tunable without touching scene code) ──────────────
   chickenScale: 0.52, // sprite scale (128px frame → ~66px on screen)
   chickenLerpSpeed: 0.12, // fraction of distance closed per frame (~0.5 s to reach tile)
+  chickenHungerLerpSpeed: 0.06, // slower lerp when seeking (spreads 2-tile jump over full second)
   farmerScale: 0.78, // sprite scale (128px frame → ~100px on screen)
   farmerLerpSpeed: 0.07, // slower lerp so animations are visible
 } as const

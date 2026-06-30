@@ -240,7 +240,9 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
     // Energy drain — happens every tick regardless of state
     chicken.energy = Math.max(0, chicken.energy - cfg.chickenEnergyDrainPerSec)
 
-    if (chicken.energy <= 0) {
+    // A chicken actively eating or seeking corn cannot die immediately —
+    // eating will restore energy within the same tick's state machine.
+    if (chicken.energy <= 0 && chicken.state !== 'eating' && chicken.state !== 'seeking') {
       chicken.dead = true
       chicken.deadTimerSec = 0
       continue
@@ -304,12 +306,16 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         chicken.state = 'eating'
         chicken.eatTimerSec = 0
       } else {
-        const step = stepToward(
-          { col: chicken.col, row: chicken.row },
-          { col: corn.col, row: corn.row }
-        )
-        chicken.col = step.col
-        chicken.row = step.row
+        // Move 2 tiles per tick — combined with the slower lerp this gives smooth 2× speed
+        for (let i = 0; i < 2; i++) {
+          if (chicken.col === corn.col && chicken.row === corn.row) break
+          const step = stepToward(
+            { col: chicken.col, row: chicken.row },
+            { col: corn.col, row: corn.row }
+          )
+          chicken.col = step.col
+          chicken.row = step.row
+        }
       }
     } else {
       // wandering: hunger check → random movement → production timer
@@ -332,8 +338,8 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
         chicken.wanderCooldownSec = cfg.chickenWanderIntervalSec
       }
 
-      // Production timer — only lays if energy > 0
-      if (chicken.energy > 0) {
+      // Production timer — paused while hungry (survival > production)
+      if (chicken.energy > cfg.chickenHungerThreshold) {
         chicken.layTimerSec += 1
         if (chicken.layTimerSec >= cfg.eggLayTimeSec) {
           const cornOnTile = next.placedCorn.some(
