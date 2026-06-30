@@ -20,6 +20,23 @@ import warehouseUrl from '@/assets/sprites/warehouse..png'
 import truckUrl from '@/assets/sprites/truck.png'
 import scrollIconUrl from '@/assets/sprites/scroll_icon.png'
 
+// ─── Scene layout calibration ──────────────────────────────────────────────────
+// All x/y are fractions of canvas width/height. offX/offY are fixed pixel
+// offsets on top of the fractional base. Change here → moves everywhere.
+const LAYOUT = {
+  cornWarehouse: { x: 0.25, y: 0.25, scale: 0.75 },
+  cornStockBadge: { x: 0.26, y: 0.25, offX: 105, offY: 0, scale: 1.2 },
+  cornPriceCoin: { x: 0.25, y: 0.25, offX: -26, offY: -90, scale: 0.55 },
+  cornPriceText: { x: 0.25, y: 0.25, offX: -8, offY: -90 },
+  warehouseSprite: { x: 0.86, y: 0.88, scale: 1.2 },
+  scrollMPD: { x: 0.18, y: 0.22 },
+  scrollWIP: { x: 0.8, y: 0.38 },
+  scrollPT: { x: 0.79, y: 0.82 },
+  farmerHome: { x: 0.5, y: 0.82 },
+  truck: { y: 0.85 },
+  scrollIcon: { scale: 0.88 },
+} as const
+
 // ─── Visual sizes ──────────────────────────────────────────────────────────────
 const SZ = {
   egg: 34,
@@ -273,9 +290,9 @@ export class FarmScene extends Phaser.Scene {
 
     // Corn warehouse — left side near the farm grid
     this.cornWarehouseSprite = this.add
-      .sprite(width * 0.25, height * 0.25, 'corn_warehouse', 0)
+      .sprite(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y, 'corn_warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(0.75)
+      .setScale(LAYOUT.cornWarehouse.scale)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.cornWarehouseSprite.on('pointerdown', () => {
@@ -284,80 +301,115 @@ export class FarmScene extends Phaser.Scene {
       this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
     })
     this.cornTooltip = this.add
-      .text(width * 0.25, height * 0.25 - 120, '🌽 Tienda de maíz', {
-        fontFamily: 'Kalam',
-        fontSize: '17px',
-        color: '#FFD700',
-        backgroundColor: '#1a0800ee',
-        padding: { x: 10, y: 5 },
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
+      .text(
+        width * LAYOUT.cornWarehouse.x,
+        height * LAYOUT.cornWarehouse.y - 120,
+        '🌽 Tienda de maíz',
+        {
+          fontFamily: 'Kalam',
+          fontSize: '17px',
+          color: '#FFD700',
+          backgroundColor: '#1a0800ee',
+          padding: { x: 10, y: 5 },
+          stroke: '#000000',
+          strokeThickness: 3,
+        }
+      )
       .setOrigin(0.5, 1)
       .setDepth(60)
       .setVisible(false)
-    this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, 0.75)
+    this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, LAYOUT.cornWarehouse.scale)
 
     this.cornStockBadge = this.add
-      .sprite(width * 0.25 + 105, height * 0.25, 'corn_stock_badge', 0)
+      .sprite(
+        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX,
+        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY,
+        'corn_stock_badge',
+        0
+      )
       .setOrigin(0.5, 0.5)
-      .setScale(1.2)
+      .setScale(LAYOUT.cornStockBadge.scale)
       .setDepth(32)
 
     // Corn price — coin + text to the LEFT of the warehouse barn (visible only when store is open)
     const cornBatchPrice = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
     this.cornPriceCoin = this.add
-      .sprite(width * 0.25 - 26, height * 0.25 - 90, 'coin', 0)
+      .sprite(
+        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX,
+        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY,
+        'coin',
+        0
+      )
       .setOrigin(0.5, 0.5)
-      .setScale(0.55)
+      .setScale(LAYOUT.cornPriceCoin.scale)
       .setDepth(33)
       .setVisible(false)
     this.cornPriceCoin.play('coin_spin')
     this.cornPriceText = this.add
-      .text(width * 0.25 - 8, height * 0.25 - 90, `$${cornBatchPrice}`, {
-        fontSize: '28px',
-        color: '#FFD700',
-        fontFamily: 'Kalam',
-        fontStyle: 'bold',
-        stroke: '#000000',
-        strokeThickness: 4,
-      })
+      .text(
+        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX,
+        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY,
+        `$${cornBatchPrice}`,
+        {
+          fontSize: '28px',
+          color: '#FFD700',
+          fontFamily: 'Kalam',
+          fontStyle: 'bold',
+          stroke: '#000000',
+          strokeThickness: 4,
+        }
+      )
       .setOrigin(0, 0.5)
       .setDepth(33)
       .setVisible(false)
 
     // Egg warehouse — bottom-right, single interactive sprite
     this.warehouseSprite = this.add
-      .sprite(width * 0.86, height * 0.88, 'warehouse', 0)
+      .sprite(width * LAYOUT.warehouseSprite.x, height * LAYOUT.warehouseSprite.y, 'warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(1.2)
+      .setScale(LAYOUT.warehouseSprite.scale)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.warehouseSprite.on('pointerdown', () => this.openSellModal())
     this.warehouseTooltip = this.add
-      .text(width * 0.86, height * 0.88 - 120, '🥚 Almacén de productos', {
-        fontFamily: 'Kalam',
-        fontSize: '17px',
-        color: '#FFD700',
-        backgroundColor: '#1a0800ee',
-        padding: { x: 10, y: 5 },
-        stroke: '#000000',
-        strokeThickness: 3,
-      })
+      .text(
+        width * LAYOUT.warehouseSprite.x,
+        height * LAYOUT.warehouseSprite.y - 120,
+        '🥚 Almacén de productos',
+        {
+          fontFamily: 'Kalam',
+          fontSize: '17px',
+          color: '#FFD700',
+          backgroundColor: '#1a0800ee',
+          padding: { x: 10, y: 5 },
+          stroke: '#000000',
+          strokeThickness: 3,
+        }
+      )
       .setOrigin(0.5, 1)
       .setDepth(60)
       .setVisible(false)
-    this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, 1.2)
+    this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, LAYOUT.warehouseSprite.scale)
 
     // Cost-flow scroll buttons — one at each production stage
-    this.scrollMPD = this.createScrollButton(width * 0.35, height * 0.22, 'MPD', 'scroll-mpd')
+    this.scrollMPD = this.createScrollButton(
+      width * LAYOUT.scrollMPD.x,
+      height * LAYOUT.scrollMPD.y,
+      'MPD',
+      'scroll-mpd'
+    )
     this.scrollWIP = this.createScrollButton(
-      width * 0.58,
-      height * 0.38,
+      width * LAYOUT.scrollWIP.x,
+      height * LAYOUT.scrollWIP.y,
       'Producción',
       'scroll-wip'
     )
-    this.scrollPT = this.createScrollButton(width * 0.73, height * 0.82, 'PT', 'scroll-pt')
+    this.scrollPT = this.createScrollButton(
+      width * LAYOUT.scrollPT.x,
+      height * LAYOUT.scrollPT.y,
+      'PT',
+      'scroll-pt'
+    )
 
     this.scale.on('resize', () => this.relayout())
   }
@@ -569,7 +621,10 @@ export class FarmScene extends Phaser.Scene {
     label: string,
     dialog: string
   ): Phaser.GameObjects.Container {
-    const sprite = this.add.sprite(0, -6, 'scroll_icon', 0).setOrigin(0.5, 0.5).setScale(0.88)
+    const sprite = this.add
+      .sprite(0, -6, 'scroll_icon', 0)
+      .setOrigin(0.5, 0.5)
+      .setScale(LAYOUT.scrollIcon.scale)
 
     const txt = this.add
       .text(0, 30, label, {
@@ -987,18 +1042,33 @@ export class FarmScene extends Phaser.Scene {
 
     this.cornTooltip.setVisible(false)
     this.warehouseTooltip.setVisible(false)
-    this.cornWarehouseSprite.setPosition(width * 0.25, height * 0.25)
-    this.cornStockBadge.setPosition(width * 0.25 + 105, height * 0.25)
-    this.cornPriceCoin.setPosition(width * 0.25 - 26, height * 0.25 - 90)
-    this.cornPriceText.setPosition(width * 0.25 - 8, height * 0.25 - 90)
-    this.warehouseSprite.setPosition(width * 0.86, height * 0.88)
-    this.scrollMPD.setPosition(width * 0.35, height * 0.22)
-    this.scrollWIP.setPosition(width * 0.58, height * 0.38)
-    this.scrollPT.setPosition(width * 0.73, height * 0.82)
-    this.farmerHome.set(width / 2, height * 0.82)
+    this.cornWarehouseSprite.setPosition(
+      width * LAYOUT.cornWarehouse.x,
+      height * LAYOUT.cornWarehouse.y
+    )
+    this.cornStockBadge.setPosition(
+      width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX,
+      height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY
+    )
+    this.cornPriceCoin.setPosition(
+      width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX,
+      height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY
+    )
+    this.cornPriceText.setPosition(
+      width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX,
+      height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY
+    )
+    this.warehouseSprite.setPosition(
+      width * LAYOUT.warehouseSprite.x,
+      height * LAYOUT.warehouseSprite.y
+    )
+    this.scrollMPD.setPosition(width * LAYOUT.scrollMPD.x, height * LAYOUT.scrollMPD.y)
+    this.scrollWIP.setPosition(width * LAYOUT.scrollWIP.x, height * LAYOUT.scrollWIP.y)
+    this.scrollPT.setPosition(width * LAYOUT.scrollPT.x, height * LAYOUT.scrollPT.y)
+    this.farmerHome.set(width * LAYOUT.farmerHome.x, height * LAYOUT.farmerHome.y)
 
     if (!this.truckAnimating) {
-      this.truckSprite.setPosition(width + 150, height * 0.85)
+      this.truckSprite.setPosition(width + 150, height * LAYOUT.truck.y)
     }
 
     this.placedCornSprites.forEach((s) => s.destroy())
