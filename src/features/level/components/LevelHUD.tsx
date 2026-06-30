@@ -168,11 +168,20 @@ export function LevelHUD() {
         </div>
 
         {/* Stars */}
-        <div className="flex items-center justify-center gap-1 px-6 py-2">
+        <div className="flex items-center justify-center gap-1 px-6 pt-2 pb-1">
           {[1, 2, 3].map((n) => (
             <StarSprite key={n} filled={n <= stars} size={30} />
           ))}
         </div>
+
+        {/* Star target hint */}
+        {stars >= 2 && (
+          <p className="pb-1 text-center text-[10px] font-bold" style={TEXT_LABEL}>
+            {stars === 3
+              ? `⭐⭐⭐ antes de ${formatTime(FARM_LEVEL1.starThresholdsSec.three)}`
+              : `⭐⭐ antes de ${formatTime(FARM_LEVEL1.starThresholdsSec.two)}`}
+          </p>
+        )}
 
         {/* Cash */}
         <div className="flex items-center justify-between gap-3 px-6 py-1.5">
