@@ -16,10 +16,10 @@ const TEXT_MAIN: React.CSSProperties = {
 }
 
 const TEXT_LABEL: React.CSSProperties = {
-  color: '#D4956A',
+  color: '#FFE066',
   fontFamily: "'Kalam', cursive",
   fontWeight: 700,
-  textShadow: '1px 1px 2px rgba(0,0,0,0.7)',
+  textShadow: '1px 1px 3px rgba(0,0,0,0.9)',
 }
 
 const TEXT_VALUE: React.CSSProperties = {
