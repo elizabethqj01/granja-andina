@@ -23,6 +23,8 @@ export interface Chicken {
   eatTimerSec: number // counts up in eating state; resets when done
   wanderCooldownSec: number
   energy: number // 0..chickenMaxEnergy; drains over time, restored by eating corn
+  dead: boolean
+  deadTimerSec: number
 }
 
 export interface GroundEgg {
@@ -176,6 +178,8 @@ function initialFarmState(): FarmState {
     eatTimerSec: 0,
     wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
     energy: FARM_LEVEL1.chickenMaxEnergy,
+    dead: false,
+    deadTimerSec: 0,
   }))
 
   return {
@@ -227,8 +231,20 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
   //    Eggs are laid on a timer while wandering (decoupled from corn eating).
   //    Chickens never lay on a corn tile — they move to an adjacent free tile first.
   for (const chicken of next.chickens) {
+    // Dead chickens just wait for the fade animation to finish before removal
+    if (chicken.dead) {
+      chicken.deadTimerSec += 1
+      continue
+    }
+
     // Energy drain — happens every tick regardless of state
     chicken.energy = Math.max(0, chicken.energy - cfg.chickenEnergyDrainPerSec)
+
+    if (chicken.energy <= 0) {
+      chicken.dead = true
+      chicken.deadTimerSec = 0
+      continue
+    }
 
     if (chicken.state === 'laying') {
       // Laying animation timer — egg drops after eggLayAnimSec
@@ -341,6 +357,9 @@ export function advanceFarm(state: FarmState, cfg = FARM_LEVEL1): FarmState {
       }
     }
   }
+
+  // Remove chickens whose death fade animation has completed (2 s after death)
+  next.chickens = next.chickens.filter((c) => !c.dead || c.deadTimerSec < 2)
 
   // 3) Age non-collected eggs; remove those that have spoiled
   next.groundEggs = next.groundEggs
@@ -523,6 +542,8 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             eatTimerSec: 0,
             wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
             energy: FARM_LEVEL1.chickenMaxEnergy,
+            dead: false,
+            deadTimerSec: 0,
           },
         ],
       })

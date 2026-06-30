@@ -91,6 +91,7 @@ export class FarmScene extends Phaser.Scene {
 
   private eggSprites = new Map<string, Phaser.GameObjects.Image>()
   private placedCornSprites = new Map<string, Phaser.GameObjects.Sprite>()
+  private dyingChickenIds = new Set<string>()
   private tileZones: Phaser.GameObjects.Zone[] = []
   private farmerHome = new Phaser.Math.Vector2()
   private truckAnimating = false
@@ -473,6 +474,7 @@ export class FarmScene extends Phaser.Scene {
         this.chickenSprites.delete(id)
         this.chickenHungerBars.delete(id)
         this.chickenHungerAlerts.delete(id)
+        this.dyingChickenIds.delete(id)
       }
     }
 
@@ -507,6 +509,19 @@ export class FarmScene extends Phaser.Scene {
       }
 
       const sprite = this.chickenSprites.get(chicken.id)!
+
+      // Death fade — trigger once, then skip all movement/animation
+      if (chicken.dead) {
+        if (!this.dyingChickenIds.has(chicken.id)) {
+          this.dyingChickenIds.add(chicken.id)
+          this.tweens.killTweensOf(sprite)
+          this.tweens.add({ targets: sprite, alpha: 0, duration: 1500, ease: 'Quad.In' })
+          this.chickenHungerBars.get(chicken.id)?.setVisible(false)
+          this.chickenHungerAlerts.get(chicken.id)?.setVisible(false)
+        }
+        continue
+      }
+
       const target = this.iso.toScreen(chicken.col, chicken.row)
       const dx = target.x - sprite.x
       const dy = target.y - sprite.y
@@ -577,6 +592,7 @@ export class FarmScene extends Phaser.Scene {
     this.chickenSprites.clear()
     this.chickenHungerBars.clear()
     this.chickenHungerAlerts.clear()
+    this.dyingChickenIds.clear()
   }
 
   // ── Hover effects ──────────────────────────────────────────────────────────

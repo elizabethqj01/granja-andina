@@ -18,6 +18,8 @@ const defaultChicken = {
   eatTimerSec: 0,
   wanderCooldownSec: FARM_LEVEL1.chickenWanderIntervalSec,
   energy: FARM_LEVEL1.chickenMaxEnergy,
+  dead: false,
+  deadTimerSec: 0,
 }
 
 function baseState(overrides: Partial<FarmState> = {}): FarmState {
