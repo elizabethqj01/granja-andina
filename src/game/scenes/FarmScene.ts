@@ -24,10 +24,13 @@ import scrollIconUrl from '@/assets/sprites/scroll_icon.png'
 // Design resolution: the game was authored at 1280×720. At runtime we compute
 // sf = min(viewport_w / DESIGN_W, viewport_h / DESIGN_H) and multiply every
 // fixed-pixel size by sf so the game looks the same at any viewport.
+// On mobile the grid shrinks to 8×8 (set by FarmGameCanvas before Phaser starts),
+// so we boost sf by (12/8)=1.5 to keep tiles large and clickable.
 const DESIGN_W = 1280
 const DESIGN_H = 720
 const BASE_TILE_W = 96
 const BASE_TILE_H = 48
+const DESIGN_GRID_COLS = 12 // default — used to compute mobile boost factor
 
 // ─── Scene layout calibration ──────────────────────────────────────────────────
 // All x/y are fractions of canvas width/height. offX/offY are fixed pixel
@@ -139,7 +142,10 @@ export class FarmScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale
-    this.sf = Math.min(width / DESIGN_W, height / DESIGN_H)
+    this.sf = Math.min(
+      Math.min(width / DESIGN_W, height / DESIGN_H) * (DESIGN_GRID_COLS / FARM_GRID.cols),
+      1.5
+    )
 
     this.bgImage = this.add
       .image(0, 0, 'background')
@@ -1066,7 +1072,10 @@ export class FarmScene extends Phaser.Scene {
 
   private relayout(): void {
     const { width, height } = this.scale
-    this.sf = Math.min(width / DESIGN_W, height / DESIGN_H)
+    this.sf = Math.min(
+      Math.min(width / DESIGN_W, height / DESIGN_H) * (DESIGN_GRID_COLS / FARM_GRID.cols),
+      1.5
+    )
 
     this.bgImage.setDisplaySize(width, height)
 

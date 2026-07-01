@@ -48,7 +48,7 @@ export function SellModal() {
     eggCount * FARM_LEVEL1.eggSellPrice + chickenCount * FARM_LEVEL1.chickenSellPrice
   const canSell = totalIncome > 0 && saleState === 'idle'
 
-  const p = (base: number) => Math.round(base * sf)
+  const p = (base: number, min = 0) => Math.max(min, Math.round(base * sf))
 
   function handleClose() {
     setFarmDialog(null)
@@ -86,7 +86,7 @@ export function SellModal() {
             top: p(12),
             width: p(32),
             height: p(32),
-            fontSize: `${p(14)}px`,
+            fontSize: `${p(14, 13)}px`,
           }}
           aria-label="Cerrar"
         >
@@ -99,7 +99,7 @@ export function SellModal() {
           style={{
             ...TEXT_MAIN,
             fontFamily: "'Fredoka One', cursive",
-            fontSize: `${p(22)}px`,
+            fontSize: `${p(22, 17)}px`,
             letterSpacing: '0.05em',
             marginBottom: `${p(4)}px`,
           }}
@@ -108,7 +108,7 @@ export function SellModal() {
         </h2>
         <p
           className="text-center"
-          style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, marginBottom: `${p(20)}px` }}
+          style={{ ...TEXT_LABEL, fontSize: `${p(11, 12)}px`, marginBottom: `${p(20)}px` }}
         >
           El camión llevará la carga y traerá el dinero al volver.
         </p>
@@ -116,8 +116,8 @@ export function SellModal() {
         {/* Eggs row */}
         <div style={{ marginBottom: `${p(16)}px` }}>
           <div className="flex items-center justify-between" style={{ marginBottom: `${p(8)}px` }}>
-            <span style={{ ...TEXT_LABEL, fontSize: `${p(13)}px` }}>🥚 Huevos</span>
-            <span style={{ ...TEXT_VALUE, fontSize: `${p(11)}px` }}>
+            <span style={{ ...TEXT_LABEL, fontSize: `${p(13, 13)}px` }}>🥚 Huevos</span>
+            <span style={{ ...TEXT_VALUE, fontSize: `${p(11, 12)}px` }}>
               {warehouseEggs} disponibles · ${FARM_LEVEL1.eggSellPrice}c/u
             </span>
           </div>
@@ -125,27 +125,31 @@ export function SellModal() {
             <button
               onClick={() => setEggCount((c) => Math.max(0, c - 1))}
               className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
-              style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18)}px` }}
+              style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
             >
               −
             </button>
             <span
               className="flex-1 text-center font-bold"
-              style={{ ...TEXT_MAIN, fontFamily: "'Fredoka One', cursive", fontSize: `${p(28)}px` }}
+              style={{
+                ...TEXT_MAIN,
+                fontFamily: "'Fredoka One', cursive",
+                fontSize: `${p(28, 20)}px`,
+              }}
             >
               {eggCount}
             </span>
             <button
               onClick={() => setEggCount((c) => Math.min(warehouseEggs, c + 1))}
               className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
-              style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18)}px` }}
+              style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
             >
               +
             </button>
             <button
               onClick={() => setEggCount(warehouseEggs)}
               className="rounded-lg bg-amber-900/60 font-bold transition-colors hover:bg-amber-800/80"
-              style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, padding: `${p(4)}px ${p(10)}px` }}
+              style={{ ...TEXT_LABEL, fontSize: `${p(11, 12)}px`, padding: `${p(4)}px ${p(10)}px` }}
             >
               Todo
             </button>
@@ -159,8 +163,8 @@ export function SellModal() {
               className="flex items-center justify-between"
               style={{ marginBottom: `${p(8)}px` }}
             >
-              <span style={{ ...TEXT_LABEL, fontSize: `${p(13)}px` }}>🐔 Gallinas</span>
-              <span style={{ ...TEXT_VALUE, fontSize: `${p(11)}px` }}>
+              <span style={{ ...TEXT_LABEL, fontSize: `${p(13, 13)}px` }}>🐔 Gallinas</span>
+              <span style={{ ...TEXT_VALUE, fontSize: `${p(11, 12)}px` }}>
                 {chickensSellable} vendibles · ${FARM_LEVEL1.chickenSellPrice}c/u
               </span>
             </div>
@@ -168,7 +172,7 @@ export function SellModal() {
               <button
                 onClick={() => setChickenCount((c) => Math.max(0, c - 1))}
                 className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
-                style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18)}px` }}
+                style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
               >
                 −
               </button>
@@ -177,7 +181,7 @@ export function SellModal() {
                 style={{
                   ...TEXT_MAIN,
                   fontFamily: "'Fredoka One', cursive",
-                  fontSize: `${p(28)}px`,
+                  fontSize: `${p(28, 20)}px`,
                 }}
               >
                 {chickenCount}
@@ -185,7 +189,7 @@ export function SellModal() {
               <button
                 onClick={() => setChickenCount((c) => Math.min(chickensSellable, c + 1))}
                 className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
-                style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18)}px` }}
+                style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
               >
                 +
               </button>
@@ -203,13 +207,13 @@ export function SellModal() {
             marginBottom: `${p(20)}px`,
           }}
         >
-          <p style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, marginBottom: `${p(4)}px` }}>
+          <p style={{ ...TEXT_LABEL, fontSize: `${p(11, 12)}px`, marginBottom: `${p(4)}px` }}>
             Total a recibir
           </p>
           <p
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(28)}px`,
+              fontSize: `${p(28, 20)}px`,
               fontWeight: 700,
               ...(totalIncome > 0
                 ? { color: '#FFD700', textShadow: '0 0 12px rgba(255,200,0,0.5)' }
@@ -228,7 +232,7 @@ export function SellModal() {
             style={{
               ...TEXT_LABEL,
               borderColor: '#D4956A',
-              fontSize: `${p(13)}px`,
+              fontSize: `${p(13, 13)}px`,
               padding: `${p(8)}px`,
             }}
           >
@@ -239,7 +243,7 @@ export function SellModal() {
             disabled={!canSell}
             className="flex-1 rounded-xl font-bold transition-all disabled:opacity-40"
             style={{
-              fontSize: `${p(13)}px`,
+              fontSize: `${p(13, 13)}px`,
               padding: `${p(8)}px`,
               ...(canSell
                 ? {

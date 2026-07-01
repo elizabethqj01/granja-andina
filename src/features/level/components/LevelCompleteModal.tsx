@@ -89,7 +89,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
 
   if (!levelComplete) return null
 
-  const p = (base: number) => Math.round(base * sf)
+  const p = (base: number, min = 0) => Math.max(min, Math.round(base * sf))
 
   return (
     <div className="fixed inset-0 z-[45] flex items-center justify-center bg-black/70 p-4">
@@ -107,7 +107,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
           <p
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(11)}px`,
+              fontSize: `${p(11, 12)}px`,
               letterSpacing: '0.18em',
               color: '#FFE066',
               textShadow: '1px 1px 2px rgba(0,0,0,0.8)',
@@ -120,7 +120,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(26)}px`,
+              fontSize: `${p(26, 19)}px`,
               color: '#FFF3D0',
               textShadow: '2px 2px 6px rgba(0,0,0,0.9)',
               marginBottom: `${p(12)}px`,
@@ -154,14 +154,14 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
             { label: 'Caja final', value: `$${cash.toLocaleString('es-CO')}`, emoji: '💰' },
           ].map(({ label, value, emoji }) => (
             <div key={label}>
-              <p style={{ ...TEXT_LABEL, fontSize: `${p(10)}px`, margin: 0 }}>
+              <p style={{ ...TEXT_LABEL, fontSize: `${p(10, 11)}px`, margin: 0 }}>
                 {emoji} {label}
               </p>
               <p
                 style={{
                   ...TEXT_MAIN,
                   fontFamily: "'Kalam', cursive",
-                  fontSize: `${p(15)}px`,
+                  fontSize: `${p(15, 14)}px`,
                   fontWeight: 700,
                   margin: 0,
                 }}
@@ -177,7 +177,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: `${p(12)}px`,
+              fontSize: `${p(12, 13)}px`,
               textAlign: 'center',
               marginBottom: `${p(10)}px`,
             }}
@@ -203,13 +203,13 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
                     gap: `${p(8)}px`,
                   }}
                 >
-                  <span style={{ fontSize: `${p(22)}px`, lineHeight: 1 }}>{emoji}</span>
+                  <span style={{ fontSize: `${p(22, 18)}px`, lineHeight: 1 }}>{emoji}</span>
                   <span>
                     <span
                       style={{
                         ...TEXT_MAIN,
                         fontFamily: "'Kalam', cursive",
-                        fontSize: `${p(13)}px`,
+                        fontSize: `${p(13, 13)}px`,
                         fontWeight: 700,
                         display: 'block',
                         lineHeight: 1.2,
@@ -217,10 +217,12 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
                     >
                       {label}
                     </span>
-                    <span style={{ ...TEXT_LABEL, fontSize: `${p(10)}px` }}>{sub}</span>
+                    <span style={{ ...TEXT_LABEL, fontSize: `${p(10, 11)}px` }}>{sub}</span>
                   </span>
                   {done && (
-                    <span style={{ marginLeft: 'auto', color: '#6fcf5a', fontSize: `${p(16)}px` }}>
+                    <span
+                      style={{ marginLeft: 'auto', color: '#6fcf5a', fontSize: `${p(16, 14)}px` }}
+                    >
                       ✓
                     </span>
                   )}
@@ -231,7 +233,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: `${p(10)}px`,
+              fontSize: `${p(10, 11)}px`,
               textAlign: 'center',
               marginTop: `${p(8)}px`,
               opacity: 0.7,
@@ -252,7 +254,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
               background: 'rgba(0,0,0,0.4)',
               border: '2px solid rgba(255,224,102,0.5)',
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(15)}px`,
+              fontSize: `${p(15, 14)}px`,
               cursor: 'pointer',
               ...TEXT_MAIN,
             }}
@@ -268,7 +270,7 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
               background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
               border: '2px solid #f5c060',
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(15)}px`,
+              fontSize: `${p(15, 14)}px`,
               cursor: 'pointer',
               color: '#FFF3D0',
               textShadow: '1px 1px 3px rgba(0,0,0,0.7)',

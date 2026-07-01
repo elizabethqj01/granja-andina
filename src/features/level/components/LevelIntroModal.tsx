@@ -72,7 +72,7 @@ export function LevelIntroModal() {
   if (farmDialog !== 'objectives') return null
 
   const content = LEVEL_CONTENT[activeLevelId]
-  const p = (base: number) => Math.round(base * sf)
+  const p = (base: number, min = 0) => Math.max(min, Math.round(base * sf))
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -90,7 +90,7 @@ export function LevelIntroModal() {
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: `${p(11)}px`,
+              fontSize: `${p(11, 12)}px`,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
               marginBottom: `${p(4)}px`,
@@ -101,7 +101,7 @@ export function LevelIntroModal() {
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(26)}px`,
+              fontSize: `${p(26, 19)}px`,
               ...TEXT_MAIN,
               marginBottom: 0,
             }}
@@ -132,19 +132,19 @@ export function LevelIntroModal() {
                 border: '1px solid rgba(255,224,102,0.2)',
               }}
             >
-              <span style={{ fontSize: `${p(32)}px`, lineHeight: 1 }}>{obj.icon}</span>
+              <span style={{ fontSize: `${p(32, 24)}px`, lineHeight: 1 }}>{obj.icon}</span>
               <div>
                 <p
                   style={{
                     fontFamily: "'Fredoka One', cursive",
-                    fontSize: `${p(22)}px`,
+                    fontSize: `${p(22, 17)}px`,
                     ...TEXT_MAIN,
                     margin: 0,
                   }}
                 >
                   {obj.text}
                 </p>
-                <p style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, margin: 0 }}>{obj.sub}</p>
+                <p style={{ ...TEXT_LABEL, fontSize: `${p(11, 12)}px`, margin: 0 }}>{obj.sub}</p>
               </div>
             </div>
           ))}
@@ -160,12 +160,20 @@ export function LevelIntroModal() {
           }}
         >
           {content.tips.map((tip) => (
-            <p key={tip} style={{ ...TEXT_MAIN, fontSize: `${p(12)}px`, margin: 0, opacity: 0.85 }}>
+            <p
+              key={tip}
+              style={{ ...TEXT_MAIN, fontSize: `${p(12, 13)}px`, margin: 0, opacity: 0.85 }}
+            >
               {tip}
             </p>
           ))}
           <p
-            style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, margin: `${p(4)}px 0 0`, opacity: 0.7 }}
+            style={{
+              ...TEXT_LABEL,
+              fontSize: `${p(11, 12)}px`,
+              margin: `${p(4)}px 0 0`,
+              opacity: 0.7,
+            }}
           >
             {content.starHint}
           </p>
@@ -182,7 +190,7 @@ export function LevelIntroModal() {
               background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
               border: '2px solid #f5c060',
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(17)}px`,
+              fontSize: `${p(17, 15)}px`,
               cursor: 'pointer',
               ...TEXT_MAIN,
               boxShadow: '0 4px 12px rgba(180,100,20,0.5)',

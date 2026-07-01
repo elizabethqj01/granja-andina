@@ -32,7 +32,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
 
   if (!levelFailed) return null
 
-  const p = (base: number) => Math.round(base * sf)
+  const p = (base: number, min = 0) => Math.max(min, Math.round(base * sf))
 
   return (
     <div className="fixed inset-0 z-[45] flex items-center justify-center bg-black/80 p-4">
@@ -46,11 +46,13 @@ export function GameOverModal({ onRetry, onExit }: Props) {
         aria-modal="true"
       >
         <div style={{ padding: `${p(32)}px ${p(24)}px ${p(24)}px`, textAlign: 'center' }}>
-          <p style={{ fontSize: `${p(52)}px`, lineHeight: 1, marginBottom: `${p(12)}px` }}>💀</p>
+          <p style={{ fontSize: `${p(52, 40)}px`, lineHeight: 1, marginBottom: `${p(12)}px` }}>
+            💀
+          </p>
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${p(24)}px`,
+              fontSize: `${p(24, 18)}px`,
               ...TEXT_MAIN,
               marginBottom: `${p(8)}px`,
             }}
@@ -60,7 +62,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: `${p(13)}px`,
+              fontSize: `${p(13, 13)}px`,
               marginBottom: `${p(20)}px`,
               opacity: 0.9,
             }}
@@ -77,7 +79,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
               border: '1px solid rgba(255,224,102,0.15)',
             }}
           >
-            <p style={{ ...TEXT_MAIN, fontSize: `${p(12)}px`, margin: 0, opacity: 0.85 }}>
+            <p style={{ ...TEXT_MAIN, fontSize: `${p(12, 13)}px`, margin: 0, opacity: 0.85 }}>
               💡 Recarga maíz antes de que la gallina tenga hambre (⚠️ señal de alerta).
             </p>
           </div>
@@ -92,7 +94,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
                 background: 'rgba(0,0,0,0.4)',
                 border: '2px solid rgba(255,224,102,0.5)',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: `${p(15)}px`,
+                fontSize: `${p(15, 14)}px`,
                 cursor: 'pointer',
                 ...TEXT_MAIN,
               }}
@@ -108,7 +110,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
                 background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
                 border: '2px solid #f5c060',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: `${p(15)}px`,
+                fontSize: `${p(15, 14)}px`,
                 cursor: 'pointer',
                 color: '#FFF3D0',
                 textShadow: '1px 1px 3px rgba(0,0,0,0.7)',

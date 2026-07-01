@@ -79,7 +79,7 @@ export interface FarmState {
   stars: LevelStars
 }
 
-export const FARM_GRID = { cols: 12, rows: 12 } as const
+export const FARM_GRID = { cols: 12, rows: 12 }
 
 // ── Internal counters (reset on initLevel) ───────────────────────────────────
 let eggCounter = 0

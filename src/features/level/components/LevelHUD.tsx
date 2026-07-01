@@ -118,25 +118,28 @@ export function LevelHUD() {
   const stars = starCount(elapsedSec, cfg)
   const warehouseFull = warehouseEggs >= cfg.maxWarehouseEggs
 
-  // Derived sizes — all scale with viewport sf
+  const r = (base: number) => Math.round(base * sf)
+  const rf = (base: number, min: number) => Math.max(min, r(base))
+
+  // Derived sizes — all scale with viewport sf, fonts have minimum readable sizes
   const s = {
-    panelMinW: Math.round(190 * sf),
-    panelPadX: Math.round(24 * sf),
-    panelPadY: Math.round(12 * sf),
-    timerFont: `${(1.6 * sf).toFixed(2)}rem`,
-    emojiFont: `${(1.1 * sf).toFixed(2)}rem`,
-    starSize: Math.round(30 * sf),
-    labelFont: `${Math.round(11 * sf)}px`,
-    valueFont: `${Math.round(15 * sf)}px`,
-    smallFont: `${Math.round(12 * sf)}px`,
-    coinSize: Math.round(18 * sf),
-    gap: Math.round(8 * sf),
-    chickSize: Math.round(38 * sf),
-    btnPadX: Math.round(12 * sf),
-    btnPadY: Math.round(8 * sf),
-    menuFont: `${Math.round(14 * sf)}px`,
-    menuPadX: Math.round(18 * sf),
-    menuPadY: Math.round(8 * sf),
+    panelMinW: r(190),
+    panelPadX: r(24),
+    panelPadY: r(12),
+    timerFont: `${Math.max(1.2, 1.6 * sf).toFixed(2)}rem`,
+    emojiFont: `${Math.max(0.9, 1.1 * sf).toFixed(2)}rem`,
+    starSize: r(30),
+    labelFont: `${rf(11, 12)}px`,
+    valueFont: `${rf(15, 14)}px`,
+    smallFont: `${rf(12, 12)}px`,
+    coinSize: Math.max(14, r(18)),
+    gap: r(8),
+    chickSize: Math.max(30, r(38)),
+    btnPadX: r(12),
+    btnPadY: Math.max(6, r(8)),
+    menuFont: `${rf(14, 14)}px`,
+    menuPadX: r(18),
+    menuPadY: Math.max(6, r(8)),
   }
 
   return (
@@ -319,7 +322,7 @@ export function LevelHUD() {
           className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-lg bg-red-700/80 font-bold text-white backdrop-blur-sm"
           style={{
             fontSize: s.smallFont,
-            padding: `${Math.round(6 * sf)}px ${Math.round(14 * sf)}px`,
+            padding: `${Math.max(5, r(6))}px ${Math.max(10, r(14))}px`,
           }}
         >
           🏠 Almacén lleno — vende los huevos
@@ -332,7 +335,7 @@ export function LevelHUD() {
           className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 rounded-lg bg-gray-900/90 font-semibold text-white shadow-lg backdrop-blur-sm"
           style={{
             fontSize: s.smallFont,
-            padding: `${Math.round(7 * sf)}px ${Math.round(18 * sf)}px`,
+            padding: `${Math.max(5, r(7))}px ${Math.max(12, r(18))}px`,
           }}
         >
           {notification}

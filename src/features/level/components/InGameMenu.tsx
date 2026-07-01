@@ -30,6 +30,7 @@ interface InGameMenuProps {
 export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
   const farmDialog = useUiStore((s) => s.farmDialog)
   const sf = Math.min(useViewportSf(), 1)
+  const p = (base: number, min = 0) => Math.max(min, Math.round(base * sf))
 
   if (farmDialog !== 'menu') return null
 
@@ -47,17 +48,17 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
       >
         <div
           style={{
-            padding: `${Math.round(28 * sf)}px ${Math.round(24 * sf)}px ${Math.round(24 * sf)}px`,
+            padding: `${p(28)}px ${p(24)}px ${p(24)}px`,
             textAlign: 'center',
           }}
         >
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: `${Math.round(11 * sf)}px`,
+              fontSize: `${p(11, 12)}px`,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              marginBottom: `${Math.round(4 * sf)}px`,
+              marginBottom: `${p(4)}px`,
             }}
           >
             Nivel 1 — Granja Andina
@@ -65,26 +66,24 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: `${Math.round(24 * sf)}px`,
+              fontSize: `${p(24, 18)}px`,
               ...TEXT_MAIN,
-              marginBottom: `${Math.round(20 * sf)}px`,
+              marginBottom: `${p(20)}px`,
             }}
           >
             ⏸ Pausa
           </h2>
 
-          <div
-            style={{ display: 'flex', flexDirection: 'column', gap: `${Math.round(10 * sf)}px` }}
-          >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: `${p(10)}px` }}>
             <button
               onClick={onResume}
               style={{
-                padding: `${Math.round(11 * sf)}px`,
+                padding: `${p(11)}px`,
                 borderRadius: '10px',
                 background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
                 border: '2px solid #f5c060',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: `${Math.round(15 * sf)}px`,
+                fontSize: `${p(15, 14)}px`,
                 cursor: 'pointer',
                 boxShadow: '0 4px 12px rgba(180,100,20,0.4)',
                 ...TEXT_MAIN,
@@ -95,12 +94,12 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
             <button
               onClick={onRestart}
               style={{
-                padding: `${Math.round(11 * sf)}px`,
+                padding: `${p(11)}px`,
                 borderRadius: '10px',
                 background: 'rgba(0,0,0,0.4)',
                 border: '2px solid rgba(255,224,102,0.5)',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: `${Math.round(15 * sf)}px`,
+                fontSize: `${p(15, 14)}px`,
                 cursor: 'pointer',
                 ...TEXT_MAIN,
               }}
@@ -110,12 +109,12 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
             <button
               onClick={onExit}
               style={{
-                padding: `${Math.round(11 * sf)}px`,
+                padding: `${p(11)}px`,
                 borderRadius: '10px',
                 background: 'rgba(0,0,0,0.4)',
                 border: '2px solid rgba(255,224,102,0.25)',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: `${Math.round(15 * sf)}px`,
+                fontSize: `${p(15, 14)}px`,
                 cursor: 'pointer',
                 ...TEXT_MAIN,
                 opacity: 0.75,
