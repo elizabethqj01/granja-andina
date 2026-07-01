@@ -2,6 +2,7 @@ import { motion } from 'framer-motion'
 import { useUiStore } from '@/store/uiStore'
 import { useFarmStore } from '@/store/farmStore'
 import { FARM_LEVEL1, FARM_LEVEL2 } from '@/constants/farmBalance'
+import { useViewportSf } from '@/hooks/useViewportSf'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
 const WOOD: React.CSSProperties = {
@@ -66,10 +67,12 @@ export function LevelIntroModal() {
   const farmDialog = useUiStore((s) => s.farmDialog)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const activeLevelId = useFarmStore((s) => s.activeLevelId)
+  const sf = Math.min(useViewportSf(), 1)
 
   if (farmDialog !== 'objectives') return null
 
   const content = LEVEL_CONTENT[activeLevelId]
+  const p = (base: number) => Math.round(base * sf)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
@@ -78,19 +81,19 @@ export function LevelIntroModal() {
         animate={{ scale: 1, opacity: 1 }}
         transition={{ type: 'spring', stiffness: 280, damping: 22 }}
         className="w-full max-w-sm overflow-hidden rounded-2xl"
-        style={WOOD}
+        style={{ ...WOOD, maxHeight: 'calc(100dvh - 2rem)', overflowY: 'auto' }}
         role="dialog"
         aria-modal="true"
       >
         {/* Header */}
-        <div style={{ padding: '28px 24px 0', textAlign: 'center' }}>
+        <div style={{ padding: `${p(28)}px ${p(24)}px 0`, textAlign: 'center' }}>
           <p
             style={{
               ...TEXT_LABEL,
-              fontSize: '11px',
+              fontSize: `${p(11)}px`,
               letterSpacing: '0.18em',
               textTransform: 'uppercase',
-              marginBottom: '4px',
+              marginBottom: `${p(4)}px`,
             }}
           >
             {content.label}
@@ -98,9 +101,9 @@ export function LevelIntroModal() {
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: '26px',
+              fontSize: `${p(26)}px`,
               ...TEXT_MAIN,
-              marginBottom: '0',
+              marginBottom: 0,
             }}
           >
             🎯 Objetivos del nivel
@@ -109,7 +112,12 @@ export function LevelIntroModal() {
 
         {/* Objective cards */}
         <div
-          style={{ margin: '16px 24px 0', display: 'flex', flexDirection: 'column', gap: '8px' }}
+          style={{
+            margin: `${p(16)}px ${p(24)}px 0`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${p(8)}px`,
+          }}
         >
           {content.objectives.map((obj) => (
             <div
@@ -117,26 +125,26 @@ export function LevelIntroModal() {
               style={{
                 background: 'rgba(0,0,0,0.3)',
                 borderRadius: '12px',
-                padding: '12px 18px',
+                padding: `${p(12)}px ${p(18)}px`,
                 display: 'flex',
                 alignItems: 'center',
-                gap: '14px',
+                gap: `${p(14)}px`,
                 border: '1px solid rgba(255,224,102,0.2)',
               }}
             >
-              <span style={{ fontSize: '32px', lineHeight: 1 }}>{obj.icon}</span>
+              <span style={{ fontSize: `${p(32)}px`, lineHeight: 1 }}>{obj.icon}</span>
               <div>
                 <p
                   style={{
                     fontFamily: "'Fredoka One', cursive",
-                    fontSize: '22px',
+                    fontSize: `${p(22)}px`,
                     ...TEXT_MAIN,
                     margin: 0,
                   }}
                 >
                   {obj.text}
                 </p>
-                <p style={{ ...TEXT_LABEL, fontSize: '11px', margin: 0 }}>{obj.sub}</p>
+                <p style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, margin: 0 }}>{obj.sub}</p>
               </div>
             </div>
           ))}
@@ -144,30 +152,37 @@ export function LevelIntroModal() {
 
         {/* Tips */}
         <div
-          style={{ margin: '12px 24px 8px', display: 'flex', flexDirection: 'column', gap: '6px' }}
+          style={{
+            margin: `${p(12)}px ${p(24)}px ${p(8)}px`,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: `${p(6)}px`,
+          }}
         >
           {content.tips.map((tip) => (
-            <p key={tip} style={{ ...TEXT_MAIN, fontSize: '12px', margin: 0, opacity: 0.85 }}>
+            <p key={tip} style={{ ...TEXT_MAIN, fontSize: `${p(12)}px`, margin: 0, opacity: 0.85 }}>
               {tip}
             </p>
           ))}
-          <p style={{ ...TEXT_LABEL, fontSize: '11px', margin: '4px 0 0', opacity: 0.7 }}>
+          <p
+            style={{ ...TEXT_LABEL, fontSize: `${p(11)}px`, margin: `${p(4)}px 0 0`, opacity: 0.7 }}
+          >
             {content.starHint}
           </p>
         </div>
 
         {/* Action */}
-        <div style={{ padding: '8px 24px 24px' }}>
+        <div style={{ padding: `${p(8)}px ${p(24)}px ${p(24)}px` }}>
           <button
             onClick={() => setFarmDialog(null)}
             style={{
               width: '100%',
-              padding: '12px',
+              padding: `${p(12)}px`,
               borderRadius: '10px',
               background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
               border: '2px solid #f5c060',
               fontFamily: "'Fredoka One', cursive",
-              fontSize: '17px',
+              fontSize: `${p(17)}px`,
               cursor: 'pointer',
               ...TEXT_MAIN,
               boxShadow: '0 4px 12px rgba(180,100,20,0.5)',

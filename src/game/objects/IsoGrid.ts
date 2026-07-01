@@ -22,6 +22,10 @@ export class IsoGrid {
     this.cfg = { ...this.cfg, originX: x, originY: y }
   }
 
+  setTileSize(width: number, height: number): void {
+    this.cfg = { ...this.cfg, tileWidth: width, tileHeight: height }
+  }
+
   get tileWidth(): number {
     return this.cfg.tileWidth
   }

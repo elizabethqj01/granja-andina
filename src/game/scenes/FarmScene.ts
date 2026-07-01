@@ -20,14 +20,23 @@ import warehouseUrl from '@/assets/sprites/warehouse..png'
 import truckUrl from '@/assets/sprites/truck.png'
 import scrollIconUrl from '@/assets/sprites/scroll_icon.png'
 
+// ─── Responsive scaling ────────────────────────────────────────────────────────
+// Design resolution: the game was authored at 1280×720. At runtime we compute
+// sf = min(viewport_w / DESIGN_W, viewport_h / DESIGN_H) and multiply every
+// fixed-pixel size by sf so the game looks the same at any viewport.
+const DESIGN_W = 1280
+const DESIGN_H = 720
+const BASE_TILE_W = 96
+const BASE_TILE_H = 48
+
 // ─── Scene layout calibration ──────────────────────────────────────────────────
 // All x/y are fractions of canvas width/height. offX/offY are fixed pixel
-// offsets on top of the fractional base. Change here → moves everywhere.
+// offsets on top of the fractional base (scaled by sf at runtime).
 const LAYOUT = {
   cornWarehouse: { x: 0.25, y: 0.25, scale: 0.75 },
   cornStockBadge: { x: 0.26, y: 0.25, offX: 105, offY: 0, scale: 1.2 },
-  cornPriceCoin: { x: 0.25, y: 0.25, offX: -26, offY: -90, scale: 0.55 },
-  cornPriceText: { x: 0.25, y: 0.25, offX: -8, offY: -90 },
+  cornPriceCoin: { x: 0.25, y: 0.11, offX: -26, offY: 0, scale: 0.55 },
+  cornPriceText: { x: 0.25, y: 0.11, offX: -8, offY: 0 },
   warehouseSprite: { x: 0.86, y: 0.88, scale: 1.2 },
   scrollMPD: { x: 0.18, y: 0.22 },
   scrollWIP: { x: 0.8, y: 0.38 },
@@ -95,6 +104,7 @@ export class FarmScene extends Phaser.Scene {
   private tileZones: Phaser.GameObjects.Zone[] = []
   private farmerHome = new Phaser.Math.Vector2()
   private truckAnimating = false
+  private sf = 1 // viewport scale factor relative to 1280×720 design resolution
 
   constructor() {
     super({ key: 'Farm' })
@@ -129,6 +139,7 @@ export class FarmScene extends Phaser.Scene {
 
   create(): void {
     const { width, height } = this.scale
+    this.sf = Math.min(width / DESIGN_W, height / DESIGN_H)
 
     this.bgImage = this.add
       .image(0, 0, 'background')
@@ -139,8 +150,8 @@ export class FarmScene extends Phaser.Scene {
     this.iso = new IsoGrid({
       originX: width / 2,
       originY: height * 0.25,
-      tileWidth: 96,
-      tileHeight: 48,
+      tileWidth: BASE_TILE_W * this.sf,
+      tileHeight: BASE_TILE_H * this.sf,
     })
 
     this.placeTileSprites()
@@ -265,7 +276,7 @@ export class FarmScene extends Phaser.Scene {
     this.farmer = this.add
       .sprite(this.farmerHome.x, this.farmerHome.y, 'farmer')
       .setOrigin(0.5, 0.62)
-      .setScale(FARM_LEVEL1.farmerScale)
+      .setScale(FARM_LEVEL1.farmerScale * this.sf)
       .setDepth(50)
     this.farmer.play('farmer_idle')
 
@@ -273,12 +284,12 @@ export class FarmScene extends Phaser.Scene {
     this.truckSprite = this.add
       .sprite(width + 150, height * 0.85, 'truck', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(0.85)
+      .setScale(0.85 * this.sf)
       .setDepth(60)
 
     this.truckBubble = this.add
-      .text(width + 150, height * 0.85 - 70, '', {
-        fontSize: '20px',
+      .text(width + 150, height * 0.85 - 70 * this.sf, '', {
+        fontSize: `${Math.round(20 * this.sf)}px`,
         fontFamily: 'Kalam',
         color: '#FFD700',
         stroke: '#000000',
@@ -293,7 +304,7 @@ export class FarmScene extends Phaser.Scene {
     this.cornWarehouseSprite = this.add
       .sprite(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y, 'corn_warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(LAYOUT.cornWarehouse.scale)
+      .setScale(LAYOUT.cornWarehouse.scale * this.sf)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.cornWarehouseSprite.on('pointerdown', () => {
@@ -304,11 +315,11 @@ export class FarmScene extends Phaser.Scene {
     this.cornTooltip = this.add
       .text(
         width * LAYOUT.cornWarehouse.x,
-        height * LAYOUT.cornWarehouse.y - 120,
+        height * LAYOUT.cornWarehouse.y - 120 * this.sf,
         '🌽 Tienda de maíz',
         {
           fontFamily: 'Kalam',
-          fontSize: '17px',
+          fontSize: `${Math.round(17 * this.sf)}px`,
           color: '#FFD700',
           backgroundColor: '#1a0800ee',
           padding: { x: 10, y: 5 },
@@ -323,36 +334,36 @@ export class FarmScene extends Phaser.Scene {
 
     this.cornStockBadge = this.add
       .sprite(
-        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX,
-        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY,
+        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX * this.sf,
+        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY * this.sf,
         'corn_stock_badge',
         0
       )
       .setOrigin(0.5, 0.5)
-      .setScale(LAYOUT.cornStockBadge.scale)
+      .setScale(LAYOUT.cornStockBadge.scale * this.sf)
       .setDepth(32)
 
     // Corn price — coin + text to the LEFT of the warehouse barn (visible only when store is open)
     const cornBatchPrice = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
     this.cornPriceCoin = this.add
       .sprite(
-        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX,
-        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY,
+        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf,
+        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY * this.sf,
         'coin',
         0
       )
       .setOrigin(0.5, 0.5)
-      .setScale(LAYOUT.cornPriceCoin.scale)
+      .setScale(LAYOUT.cornPriceCoin.scale * this.sf)
       .setDepth(33)
       .setVisible(false)
     this.cornPriceCoin.play('coin_spin')
     this.cornPriceText = this.add
       .text(
-        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX,
-        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY,
+        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
+        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY * this.sf,
         `$${cornBatchPrice}`,
         {
-          fontSize: '28px',
+          fontSize: `${Math.round(28 * this.sf)}px`,
           color: '#FFD700',
           fontFamily: 'Kalam',
           fontStyle: 'bold',
@@ -368,18 +379,18 @@ export class FarmScene extends Phaser.Scene {
     this.warehouseSprite = this.add
       .sprite(width * LAYOUT.warehouseSprite.x, height * LAYOUT.warehouseSprite.y, 'warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(LAYOUT.warehouseSprite.scale)
+      .setScale(LAYOUT.warehouseSprite.scale * this.sf)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
     this.warehouseSprite.on('pointerdown', () => this.openSellModal())
     this.warehouseTooltip = this.add
       .text(
         width * LAYOUT.warehouseSprite.x,
-        height * LAYOUT.warehouseSprite.y - 120,
+        height * LAYOUT.warehouseSprite.y - 120 * this.sf,
         '🥚 Almacén de productos',
         {
           fontFamily: 'Kalam',
-          fontSize: '17px',
+          fontSize: `${Math.round(17 * this.sf)}px`,
           color: '#FFD700',
           backgroundColor: '#1a0800ee',
           padding: { x: 10, y: 5 },
@@ -398,19 +409,19 @@ export class FarmScene extends Phaser.Scene {
       height * LAYOUT.scrollMPD.y,
       'MPD',
       'scroll-mpd'
-    )
+    ).setScale(this.sf)
     this.scrollWIP = this.createScrollButton(
       width * LAYOUT.scrollWIP.x,
       height * LAYOUT.scrollWIP.y,
       'Producción',
       'scroll-wip'
-    )
+    ).setScale(this.sf)
     this.scrollPT = this.createScrollButton(
       width * LAYOUT.scrollPT.x,
       height * LAYOUT.scrollPT.y,
       'PT',
       'scroll-pt'
-    )
+    ).setScale(this.sf)
 
     this.scale.on('resize', () => this.relayout())
   }
@@ -485,7 +496,7 @@ export class FarmScene extends Phaser.Scene {
         const sprite = this.add
           .sprite(pos.x, pos.y, 'chicken')
           .setOrigin(0.5, 0.75)
-          .setScale(FARM_LEVEL1.chickenScale)
+          .setScale(FARM_LEVEL1.chickenScale * this.sf)
           .setDepth(15)
         sprite.play('chicken_idle')
         this.chickenSprites.set(chicken.id, sprite)
@@ -495,7 +506,7 @@ export class FarmScene extends Phaser.Scene {
 
         const alert = this.add
           .text(pos.x, pos.y, '😰 ¡Hambre!', {
-            fontSize: '13px',
+            fontSize: `${Math.round(13 * this.sf)}px`,
             color: '#ffffff',
             fontFamily: 'Kalam',
             fontStyle: 'bold',
@@ -566,10 +577,10 @@ export class FarmScene extends Phaser.Scene {
     const isHungry = chicken.energy <= FARM_LEVEL1.chickenHungerThreshold
     const barColor = isHungry ? 0xe53935 : energyFrac < 0.6 ? 0xfb8c00 : 0x43a047
 
-    const w = 54
-    const h = 7
+    const w = 54 * this.sf
+    const h = Math.max(3, 7 * this.sf)
     const cx = sprite.x
-    const top = sprite.y - (128 * FARM_LEVEL1.chickenScale) / 2 - 12
+    const top = sprite.y - sprite.displayHeight / 2 - 12 * this.sf
 
     bar.clear()
     bar.fillStyle(0x000000, 0.45)
@@ -601,28 +612,30 @@ export class FarmScene extends Phaser.Scene {
   private addHoverEffect(
     sprite: Phaser.GameObjects.Sprite,
     tooltip: Phaser.GameObjects.Text,
-    baseScale: number
+    layoutScale: number // base LAYOUT scale constant (without sf — sf is read at event time)
   ): void {
     sprite.on('pointerover', () => {
+      const base = layoutScale * this.sf
       tooltip.setPosition(sprite.x, sprite.y - sprite.displayHeight * 0.5 - 14)
       tooltip.setVisible(true)
       this.tweens.killTweensOf(sprite)
       this.tweens.add({
         targets: sprite,
-        scaleX: baseScale * 1.08,
-        scaleY: baseScale * 1.08,
+        scaleX: base * 1.08,
+        scaleY: base * 1.08,
         duration: 130,
         ease: 'Back.Out',
       })
       sprite.setTint(0xffe090)
     })
     sprite.on('pointerout', () => {
+      const base = layoutScale * this.sf
       tooltip.setVisible(false)
       this.tweens.killTweensOf(sprite)
       this.tweens.add({
         targets: sprite,
-        scaleX: baseScale,
-        scaleY: baseScale,
+        scaleX: base,
+        scaleY: base,
         duration: 100,
         ease: 'Quad.Out',
       })
@@ -687,11 +700,11 @@ export class FarmScene extends Phaser.Scene {
 
     // Truck image faces RIGHT (cab on right). Entering from right moving left → flip (face left)
     this.truckSprite.setPosition(width + 200, y).setFlipX(true)
-    this.truckBubble.setPosition(width + 200, y - 70).setVisible(false)
+    this.truckBubble.setPosition(width + 200, y - 70 * this.sf).setVisible(false)
     this.truckSprite.play('truck_roll')
 
     const moveBubble = () => {
-      this.truckBubble.setPosition(this.truckSprite.x, this.truckSprite.y - 70)
+      this.truckBubble.setPosition(this.truckSprite.x, this.truckSprite.y - 70 * this.sf)
     }
 
     // 1. Enter from right → park near warehouse
@@ -721,7 +734,7 @@ export class FarmScene extends Phaser.Scene {
               this.time.delayedCall(1200, () => {
                 this.truckSprite.setPosition(width + 200, y).setFlipX(true)
                 this.truckBubble
-                  .setPosition(width + 200, y - 70)
+                  .setPosition(width + 200, y - 70 * this.sf)
                   .setText(`💰 $${income.toLocaleString('es-CO')}`)
                   .setVisible(true)
                 this.truckSprite.play('truck_roll')
@@ -818,7 +831,11 @@ export class FarmScene extends Phaser.Scene {
         const pos = this.iso.toScreen(col, row)
         const key = `${col},${row}`
         const frame = FarmScene.TILE_VARIANTS[key] ?? 3
-        const img = this.add.image(pos.x, pos.y, 'terrain', frame).setOrigin(0.5, 0.5).setDepth(-1)
+        const img = this.add
+          .image(pos.x, pos.y, 'terrain', frame)
+          .setOrigin(0.5, 0.5)
+          .setDepth(-1)
+          .setScale(this.sf)
         this.tileSprites.push(img)
       }
     }
@@ -838,6 +855,7 @@ export class FarmScene extends Phaser.Scene {
           .image(c.x + hw / 2, c.y + hh / 2, 'fence', 1)
           .setOrigin(0.5, 1)
           .setDepth(2)
+          .setScale(this.sf)
       )
     }
     // Top edge (row=0): start from col=1 to avoid crossing at the top corner
@@ -848,6 +866,7 @@ export class FarmScene extends Phaser.Scene {
           .image(c.x - hw / 2, c.y + hh / 2, 'fence', 0)
           .setOrigin(0.5, 1)
           .setDepth(2)
+          .setScale(this.sf)
       )
     }
   }
@@ -859,13 +878,15 @@ export class FarmScene extends Phaser.Scene {
     // Place decorations just outside the grid boundary (not on walkable tiles)
     const rightMid = this.iso.toScreen(FARM_GRID.cols - 1, Math.floor(FARM_GRID.rows / 2))
 
-    const spots = [
-      { x: rightMid.x + 80, y: rightMid.y + 40, frame: 3 }, // well — right lower
-    ]
+    const spots = [{ x: rightMid.x + 80 * this.sf, y: rightMid.y + 40 * this.sf, frame: 3 }]
 
     for (const s of spots) {
       this.decorationSprites.push(
-        this.add.image(s.x, s.y, 'decorations', s.frame).setOrigin(0.5, 1).setDepth(4)
+        this.add
+          .image(s.x, s.y, 'decorations', s.frame)
+          .setOrigin(0.5, 1)
+          .setDepth(4)
+          .setScale(this.sf)
       )
     }
   }
@@ -881,7 +902,7 @@ export class FarmScene extends Phaser.Scene {
     for (const base of [leftBase, rightBase]) {
       const b = this.add
         .sprite(base.x, base.y, 'butterfly')
-        .setScale(0.7)
+        .setScale(0.7 * this.sf)
         .setDepth(25)
         .setAlpha(0.85)
       b.play('butterfly_fly')
@@ -939,7 +960,7 @@ export class FarmScene extends Phaser.Scene {
         const sprite = this.add
           .sprite(pos.x, pos.y, 'corn_scatter')
           .setOrigin(0.5, 0.5)
-          .setScale(0.5)
+          .setScale(0.5 * this.sf)
           .setDepth(8)
         sprite.play('corn_scatter')
         sprite.once('animationcomplete', () => sprite.play('corn_idle'))
@@ -949,7 +970,7 @@ export class FarmScene extends Phaser.Scene {
       // Shrink based on remaining energy — reflects real consumption across all chickens
       const consumed = 1 - corn.remainingEnergy / FARM_LEVEL1.chickenCornEnergyRestore
       const sprite = this.placedCornSprites.get(corn.id)!
-      sprite.setScale(0.5 * (1 - consumed * 0.85))
+      sprite.setScale(0.5 * this.sf * (1 - consumed * 0.85))
       sprite.setAlpha(1 - consumed * 0.5)
     }
   }
@@ -971,7 +992,7 @@ export class FarmScene extends Phaser.Scene {
         sprite = this.add
           .image(pos.x, pos.y, 'egg')
           .setOrigin(0.5, 0.85)
-          .setScale(SZ.egg / 64)
+          .setScale((SZ.egg / 64) * this.sf)
           .setDepth(10)
           .setInteractive({ useHandCursor: true })
         sprite.on('pointerdown', () => useFarmStore.getState().requestCollect(egg.id))
@@ -1045,7 +1066,12 @@ export class FarmScene extends Phaser.Scene {
 
   private relayout(): void {
     const { width, height } = this.scale
+    this.sf = Math.min(width / DESIGN_W, height / DESIGN_H)
+
     this.bgImage.setDisplaySize(width, height)
+
+    // Resize isometric grid tiles then rebuild all grid-derived visuals
+    this.iso.setTileSize(BASE_TILE_W * this.sf, BASE_TILE_H * this.sf)
     this.iso.setOrigin(width / 2, height * 0.25)
 
     this.placeTileSprites()
@@ -1057,37 +1083,82 @@ export class FarmScene extends Phaser.Scene {
     this.tileZones = []
     this.createTileZones()
 
+    // Reposition and rescale static sprites
     this.cornTooltip.setVisible(false)
     this.warehouseTooltip.setVisible(false)
-    this.cornWarehouseSprite.setPosition(
-      width * LAYOUT.cornWarehouse.x,
-      height * LAYOUT.cornWarehouse.y
-    )
-    this.cornStockBadge.setPosition(
-      width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX,
-      height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY
-    )
-    this.cornPriceCoin.setPosition(
-      width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX,
-      height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY
-    )
-    this.cornPriceText.setPosition(
-      width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX,
-      height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY
-    )
-    this.warehouseSprite.setPosition(
-      width * LAYOUT.warehouseSprite.x,
-      height * LAYOUT.warehouseSprite.y
-    )
-    this.scrollMPD.setPosition(width * LAYOUT.scrollMPD.x, height * LAYOUT.scrollMPD.y)
-    this.scrollWIP.setPosition(width * LAYOUT.scrollWIP.x, height * LAYOUT.scrollWIP.y)
-    this.scrollPT.setPosition(width * LAYOUT.scrollPT.x, height * LAYOUT.scrollPT.y)
-    this.farmerHome.set(width * LAYOUT.farmerHome.x, height * LAYOUT.farmerHome.y)
+    this.cornWarehouseSprite
+      .setPosition(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y)
+      .setScale(LAYOUT.cornWarehouse.scale * this.sf)
+    this.cornTooltip
+      .setPosition(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y - 120 * this.sf)
+      .setFontSize(Math.round(17 * this.sf))
+    this.cornStockBadge
+      .setPosition(
+        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX * this.sf,
+        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY * this.sf
+      )
+      .setScale(LAYOUT.cornStockBadge.scale * this.sf)
+    this.cornPriceCoin
+      .setPosition(
+        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf,
+        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY * this.sf
+      )
+      .setScale(LAYOUT.cornPriceCoin.scale * this.sf)
+    this.cornPriceText
+      .setPosition(
+        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
+        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY * this.sf
+      )
+      .setFontSize(Math.round(28 * this.sf))
+    this.warehouseSprite
+      .setPosition(width * LAYOUT.warehouseSprite.x, height * LAYOUT.warehouseSprite.y)
+      .setScale(LAYOUT.warehouseSprite.scale * this.sf)
+    this.warehouseTooltip
+      .setPosition(
+        width * LAYOUT.warehouseSprite.x,
+        height * LAYOUT.warehouseSprite.y - 120 * this.sf
+      )
+      .setFontSize(Math.round(17 * this.sf))
 
-    if (!this.truckAnimating) {
-      this.truckSprite.setPosition(width + 150, height * LAYOUT.truck.y)
+    // Scroll containers: kill current float tween, reposition, rescale, restart
+    for (const [container, lx, ly] of [
+      [this.scrollMPD, LAYOUT.scrollMPD.x, LAYOUT.scrollMPD.y],
+      [this.scrollWIP, LAYOUT.scrollWIP.x, LAYOUT.scrollWIP.y],
+      [this.scrollPT, LAYOUT.scrollPT.x, LAYOUT.scrollPT.y],
+    ] as [Phaser.GameObjects.Container, number, number][]) {
+      const nx = width * lx
+      const ny = height * ly
+      this.tweens.killTweensOf(container)
+      container.setPosition(nx, ny).setScale(this.sf)
+      this.tweens.add({
+        targets: container,
+        y: ny - 6,
+        duration: 1200,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut',
+      })
     }
 
+    this.farmerHome.set(width * LAYOUT.farmerHome.x, height * LAYOUT.farmerHome.y)
+    this.farmer.setScale(FARM_LEVEL1.farmerScale * this.sf)
+
+    if (!this.truckAnimating) {
+      this.truckSprite.setPosition(width + 150, height * LAYOUT.truck.y).setScale(0.85 * this.sf)
+    }
+    this.truckBubble.setFontSize(Math.round(20 * this.sf))
+
+    // Rescale live chicken sprites and their hunger alerts
+    for (const [id, sprite] of this.chickenSprites) {
+      if (!this.dyingChickenIds.has(id)) {
+        sprite.setScale(FARM_LEVEL1.chickenScale * this.sf)
+      }
+    }
+    for (const [, text] of this.chickenHungerAlerts) {
+      text.setFontSize(Math.round(13 * this.sf))
+    }
+
+    // Corn and egg sprites are cleared and recreated on next update() tick
     this.placedCornSprites.forEach((s) => s.destroy())
     this.placedCornSprites.clear()
     this.eggSprites.forEach((s) => s.destroy())

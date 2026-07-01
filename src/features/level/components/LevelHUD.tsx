@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
+import { useViewportSf } from '@/hooks/useViewportSf'
 import coinUrl from '@/assets/sprites/coin.png'
 import starUrl from '@/assets/sprites/start.png'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
@@ -37,7 +38,6 @@ function ChickenSprite({ size = 40, dim = false }: { size?: number; dim?: boolea
         width: size,
         height: size,
         backgroundImage: `url(${chickenSheetUrl})`,
-        // frame 0: idle, col 0 row 0 of 128×128 spritesheet
         backgroundSize: `${size * 6}px ${size * 4}px`,
         backgroundPosition: '0 0',
         imageRendering: 'pixelated',
@@ -97,6 +97,8 @@ const TEXT_LABEL: React.CSSProperties = {
 }
 
 export function LevelHUD() {
+  const sf = useViewportSf()
+
   const elapsedSec = useFarmStore((s) => s.elapsedSec)
   const cash = useFarmStore((s) => s.cash)
   const collected = useFarmStore((s) => s.eggsCollectedTotal)
@@ -116,6 +118,27 @@ export function LevelHUD() {
   const stars = starCount(elapsedSec, cfg)
   const warehouseFull = warehouseEggs >= cfg.maxWarehouseEggs
 
+  // Derived sizes — all scale with viewport sf
+  const s = {
+    panelMinW: Math.round(190 * sf),
+    panelPadX: Math.round(24 * sf),
+    panelPadY: Math.round(12 * sf),
+    timerFont: `${(1.6 * sf).toFixed(2)}rem`,
+    emojiFont: `${(1.1 * sf).toFixed(2)}rem`,
+    starSize: Math.round(30 * sf),
+    labelFont: `${Math.round(11 * sf)}px`,
+    valueFont: `${Math.round(15 * sf)}px`,
+    smallFont: `${Math.round(12 * sf)}px`,
+    coinSize: Math.round(18 * sf),
+    gap: Math.round(8 * sf),
+    chickSize: Math.round(38 * sf),
+    btnPadX: Math.round(12 * sf),
+    btnPadY: Math.round(8 * sf),
+    menuFont: `${Math.round(14 * sf)}px`,
+    menuPadX: Math.round(18 * sf),
+    menuPadY: Math.round(8 * sf),
+  }
+
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* Top-left — chicken shop */}
@@ -129,41 +152,49 @@ export function LevelHUD() {
               ? `Necesitas $${cfg.chickenBuyPrice}`
               : `Comprar gallina ($${cfg.chickenBuyPrice})`
         }
-        className="pointer-events-auto absolute left-3 top-3 flex items-center gap-2 rounded-xl px-3 py-2 transition-transform active:scale-95"
+        className="pointer-events-auto absolute left-3 top-3 flex items-center rounded-xl transition-transform active:scale-95"
         style={{
           ...PANEL_STYLE,
+          gap: s.gap,
+          padding: `${s.btnPadY}px ${s.btnPadX}px`,
           cursor: buyDisabled ? 'not-allowed' : 'pointer',
           filter: buyDisabled ? 'brightness(0.75)' : undefined,
         }}
       >
-        <ChickenSprite size={38} dim={buyDisabled} />
-        <div className="flex flex-col items-start">
-          <span className="text-xs font-bold leading-tight" style={TEXT_LABEL}>
+        <ChickenSprite size={s.chickSize} dim={buyDisabled} />
+        <div className="flex flex-col items-start" style={{ gap: Math.round(2 * sf) }}>
+          <span style={{ ...TEXT_LABEL, fontSize: s.labelFont }}>
             {chickensFull ? 'Corral lleno' : 'Comprar gallina'}
           </span>
           <span
-            className="flex items-center gap-1 text-sm font-bold leading-tight"
-            style={TEXT_MAIN}
+            className="flex items-center font-bold"
+            style={{ ...TEXT_MAIN, fontSize: s.smallFont, gap: Math.round(4 * sf) }}
           >
-            <CoinSprite size={14} />${cfg.chickenBuyPrice}
+            <CoinSprite size={Math.round(13 * sf)} />${cfg.chickenBuyPrice}
           </span>
         </div>
       </button>
 
       {/* Top-right — main HUD panel */}
       <div
-        className="pointer-events-auto absolute right-3 top-3 min-w-[190px] overflow-hidden rounded-xl"
-        style={PANEL_STYLE}
+        className="pointer-events-auto absolute right-3 top-3 overflow-hidden rounded-xl"
+        style={{ ...PANEL_STYLE, minWidth: s.panelMinW }}
       >
         {/* Timer */}
-        <div className="flex items-center justify-center gap-2 px-6 pt-4 pb-2">
-          <span className="text-lg">⏱</span>
+        <div
+          className="flex items-center justify-center"
+          style={{
+            gap: Math.round(4 * sf),
+            padding: `${s.panelPadY}px ${s.panelPadX}px ${Math.round(6 * sf)}px`,
+          }}
+        >
+          <span style={{ fontSize: s.emojiFont }}>⏱</span>
           <span
             style={{
               ...TEXT_MAIN,
               fontFamily: "'Fredoka One', cursive",
-              fontSize: '1.6rem',
-              letterSpacing: '0.1em',
+              fontSize: s.timerFont,
+              letterSpacing: '0.08em',
             }}
           >
             {formatTime(elapsedSec)}
@@ -171,42 +202,64 @@ export function LevelHUD() {
         </div>
 
         {/* Stars */}
-        <div className="flex items-center justify-center gap-1 px-6 pt-2 pb-1">
+        <div
+          className="flex items-center justify-center"
+          style={{ gap: Math.round(4 * sf), padding: `${Math.round(4 * sf)}px ${s.panelPadX}px` }}
+        >
           {[1, 2, 3].map((n) => (
-            <StarSprite key={n} filled={n <= stars} size={30} />
+            <StarSprite key={n} filled={n <= stars} size={s.starSize} />
           ))}
         </div>
 
-        {/* Star target hint */}
-        {stars >= 2 && (
-          <p className="pb-1 text-center text-[10px] font-bold" style={TEXT_LABEL}>
+        {/* Star hint — only when sf big enough to show it */}
+        {stars >= 2 && sf >= 0.75 && (
+          <p
+            className="text-center font-bold"
+            style={{
+              ...TEXT_LABEL,
+              fontSize: `${Math.round(9 * sf)}px`,
+              padding: `0 ${s.panelPadX}px ${Math.round(4 * sf)}px`,
+            }}
+          >
             {stars === 3
-              ? `⭐⭐⭐ antes de ${formatTime(FARM_LEVEL1.starThresholdsSec.three)}`
-              : `⭐⭐ antes de ${formatTime(FARM_LEVEL1.starThresholdsSec.two)}`}
+              ? `⭐⭐⭐ antes de ${formatTime(cfg.starThresholdsSec.three)}`
+              : `⭐⭐ antes de ${formatTime(cfg.starThresholdsSec.two)}`}
           </p>
         )}
 
         {/* Cash */}
-        <div className="flex items-center justify-between gap-3 px-6 py-1.5">
-          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
-            Caja
-          </span>
+        <div
+          className="flex items-center justify-between"
+          style={{ gap: s.gap, padding: `${Math.round(4 * sf)}px ${s.panelPadX}px` }}
+        >
+          <span style={{ ...TEXT_LABEL, fontSize: s.labelFont }}>Caja</span>
           <span
-            className="flex items-center gap-1 text-base font-bold"
-            style={{ ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }}
+            className="flex items-center font-bold"
+            style={{
+              ...TEXT_MAIN,
+              fontFamily: "'Kalam', cursive",
+              fontSize: s.valueFont,
+              gap: Math.round(3 * sf),
+            }}
           >
-            <CoinSprite size={20} />${cash.toLocaleString('es-CO')}
+            <CoinSprite size={s.coinSize} />${cash.toLocaleString('es-CO')}
           </span>
         </div>
 
         {/* Objective */}
-        <div className="flex items-center justify-between gap-3 px-6 py-1.5">
-          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
-            Objetivo
-          </span>
+        <div
+          className="flex items-center justify-between"
+          style={{ gap: s.gap, padding: `${Math.round(4 * sf)}px ${s.panelPadX}px` }}
+        >
+          <span style={{ ...TEXT_LABEL, fontSize: s.labelFont }}>Objetivo</span>
           <div
-            className="flex flex-col items-end gap-0.5 text-sm font-bold"
-            style={{ ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }}
+            className="flex flex-col items-end font-bold"
+            style={{
+              ...TEXT_MAIN,
+              fontFamily: "'Kalam', cursive",
+              fontSize: s.valueFont,
+              gap: Math.round(2 * sf),
+            }}
           >
             <span>
               🥚 {collected}/{cfg.objectiveEggs}
@@ -220,21 +273,23 @@ export function LevelHUD() {
         </div>
 
         {/* Warehouse */}
-        <div className="flex items-center justify-between gap-3 px-6 pt-1.5 pb-4">
-          <span className="text-xs font-bold uppercase tracking-wide" style={TEXT_LABEL}>
-            Almacén
-          </span>
+        <div
+          className="flex items-center justify-between"
+          style={{
+            gap: s.gap,
+            padding: `${Math.round(4 * sf)}px ${s.panelPadX}px ${s.panelPadY}px`,
+          }}
+        >
+          <span style={{ ...TEXT_LABEL, fontSize: s.labelFont }}>Almacén</span>
           <span
-            className="text-sm font-bold"
-            style={
-              warehouseFull
-                ? {
-                    color: '#FF4422',
-                    textShadow: '1px 1px 3px rgba(0,0,0,0.85)',
-                    fontFamily: "'Kalam', cursive",
-                  }
-                : { ...TEXT_MAIN, fontFamily: "'Kalam', cursive" }
-            }
+            className="font-bold"
+            style={{
+              fontFamily: "'Kalam', cursive",
+              fontSize: s.valueFont,
+              ...(warehouseFull
+                ? { color: '#FF4422', textShadow: '1px 1px 3px rgba(0,0,0,0.85)' }
+                : TEXT_MAIN),
+            }}
           >
             {warehouseEggs}/{cfg.maxWarehouseEggs}
             {warehouseFull && ' 🔴'}
@@ -246,8 +301,13 @@ export function LevelHUD() {
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
           onClick={() => setFarmDialog('menu')}
-          className="rounded-xl px-5 py-2 text-sm font-bold transition-colors"
-          style={{ ...PANEL_STYLE, ...TEXT_MAIN }}
+          className="rounded-xl font-bold transition-colors"
+          style={{
+            ...PANEL_STYLE,
+            ...TEXT_MAIN,
+            fontSize: s.menuFont,
+            padding: `${s.menuPadY}px ${s.menuPadX}px`,
+          }}
         >
           Menú
         </button>
@@ -255,14 +315,26 @@ export function LevelHUD() {
 
       {/* Warehouse-full banner */}
       {warehouseFull && (
-        <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-lg bg-red-700/80 px-4 py-1.5 text-xs font-bold text-white backdrop-blur-sm">
+        <div
+          className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded-lg bg-red-700/80 font-bold text-white backdrop-blur-sm"
+          style={{
+            fontSize: s.smallFont,
+            padding: `${Math.round(6 * sf)}px ${Math.round(14 * sf)}px`,
+          }}
+        >
           🏠 Almacén lleno — vende los huevos
         </div>
       )}
 
       {/* Notification toast */}
       {notification && (
-        <div className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 rounded-lg bg-gray-900/90 px-5 py-2 text-sm font-semibold text-white shadow-lg backdrop-blur-sm">
+        <div
+          className="pointer-events-none absolute left-1/2 top-20 -translate-x-1/2 rounded-lg bg-gray-900/90 font-semibold text-white shadow-lg backdrop-blur-sm"
+          style={{
+            fontSize: s.smallFont,
+            padding: `${Math.round(7 * sf)}px ${Math.round(18 * sf)}px`,
+          }}
+        >
           {notification}
         </div>
       )}

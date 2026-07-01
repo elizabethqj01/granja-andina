@@ -1,5 +1,6 @@
 import { motion } from 'framer-motion'
 import { useFarmStore } from '@/store/farmStore'
+import { useViewportSf } from '@/hooks/useViewportSf'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
 const WOOD: React.CSSProperties = {
@@ -27,7 +28,11 @@ interface Props {
 
 export function GameOverModal({ onRetry, onExit }: Props) {
   const levelFailed = useFarmStore((s) => s.levelFailed)
+  const sf = Math.min(useViewportSf(), 1)
+
   if (!levelFailed) return null
+
+  const p = (base: number) => Math.round(base * sf)
 
   return (
     <div className="fixed inset-0 z-[45] flex items-center justify-center bg-black/80 p-4">
@@ -40,50 +45,54 @@ export function GameOverModal({ onRetry, onExit }: Props) {
         role="dialog"
         aria-modal="true"
       >
-        <div style={{ padding: '32px 24px 24px', textAlign: 'center' }}>
-          {/* Icon + title */}
-          <p style={{ fontSize: '52px', lineHeight: 1, marginBottom: '12px' }}>💀</p>
+        <div style={{ padding: `${p(32)}px ${p(24)}px ${p(24)}px`, textAlign: 'center' }}>
+          <p style={{ fontSize: `${p(52)}px`, lineHeight: 1, marginBottom: `${p(12)}px` }}>💀</p>
           <h2
             style={{
               fontFamily: "'Fredoka One', cursive",
-              fontSize: '24px',
+              fontSize: `${p(24)}px`,
               ...TEXT_MAIN,
-              marginBottom: '8px',
+              marginBottom: `${p(8)}px`,
             }}
           >
             ¡Sin gallinas!
           </h2>
-          <p style={{ ...TEXT_LABEL, fontSize: '13px', marginBottom: '20px', opacity: 0.9 }}>
+          <p
+            style={{
+              ...TEXT_LABEL,
+              fontSize: `${p(13)}px`,
+              marginBottom: `${p(20)}px`,
+              opacity: 0.9,
+            }}
+          >
             Todas las gallinas murieron de hambre.
           </p>
 
-          {/* Hint */}
           <div
             style={{
               background: 'rgba(0,0,0,0.3)',
               borderRadius: '10px',
-              padding: '12px 16px',
-              marginBottom: '24px',
+              padding: `${p(12)}px ${p(16)}px`,
+              marginBottom: `${p(24)}px`,
               border: '1px solid rgba(255,224,102,0.15)',
             }}
           >
-            <p style={{ ...TEXT_MAIN, fontSize: '12px', margin: 0, opacity: 0.85 }}>
+            <p style={{ ...TEXT_MAIN, fontSize: `${p(12)}px`, margin: 0, opacity: 0.85 }}>
               💡 Recarga maíz antes de que la gallina tenga hambre (⚠️ señal de alerta).
             </p>
           </div>
 
-          {/* Buttons */}
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div style={{ display: 'flex', gap: `${p(10)}px` }}>
             <button
               onClick={onExit}
               style={{
                 flex: 1,
-                padding: '11px',
+                padding: `${p(11)}px`,
                 borderRadius: '10px',
                 background: 'rgba(0,0,0,0.4)',
                 border: '2px solid rgba(255,224,102,0.5)',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: '15px',
+                fontSize: `${p(15)}px`,
                 cursor: 'pointer',
                 ...TEXT_MAIN,
               }}
@@ -94,12 +103,12 @@ export function GameOverModal({ onRetry, onExit }: Props) {
               onClick={onRetry}
               style={{
                 flex: 1,
-                padding: '11px',
+                padding: `${p(11)}px`,
                 borderRadius: '10px',
                 background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
                 border: '2px solid #f5c060',
                 fontFamily: "'Fredoka One', cursive",
-                fontSize: '15px',
+                fontSize: `${p(15)}px`,
                 cursor: 'pointer',
                 color: '#FFF3D0',
                 textShadow: '1px 1px 3px rgba(0,0,0,0.7)',
