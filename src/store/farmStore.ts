@@ -383,11 +383,16 @@ export function advanceFarm(
   // Remove chickens whose death fade animation has completed (2 s after death)
   next.chickens = next.chickens.filter((c) => !c.dead || c.deadTimerSec < 2)
 
-  // Detect stuck state: no living chickens and no eggs left on the field
+  // Detect truly stuck state: no living chickens, no eggs anywhere, and no way to
+  // recover — not even by selling every egg in the warehouse to fund a new chicken.
   if (!next.levelComplete && !next.levelFailed) {
     const livingChickens = next.chickens.filter((c) => !c.dead)
     if (livingChickens.length === 0 && next.groundEggs.length === 0) {
-      next.levelFailed = true
+      const maxRecoverableCash =
+        next.cash + next.warehouseEggs * cfg.eggSellPrice + next.pendingSaleIncome
+      if (maxRecoverableCash < cfg.chickenBuyPrice) {
+        next.levelFailed = true
+      }
     }
   }
 

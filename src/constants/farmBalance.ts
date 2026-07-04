@@ -39,7 +39,7 @@ export const FARM_LEVEL1 = {
   cornEatDurationSec: 3,
 
   // ── Visual / rendering ─────────────────────────────────────────────────────
-  chickenScale: 0.52,
+  chickenScale: 0.26,
   chickenLerpSpeed: 0.12,
   chickenHungerLerpSpeed: 0.06,
   farmerScale: 0.78,

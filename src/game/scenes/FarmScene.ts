@@ -108,6 +108,7 @@ export class FarmScene extends Phaser.Scene {
   private farmerHome = new Phaser.Math.Vector2()
   private truckAnimating = false
   private sf = 1 // viewport scale factor relative to 1280×720 design resolution
+  private prevFarmDialog: string | null = null
 
   constructor() {
     super({ key: 'Farm' })
@@ -115,8 +116,8 @@ export class FarmScene extends Phaser.Scene {
 
   preload(): void {
     this.load.spritesheet('chicken', chickenSheetUrl, {
-      frameWidth: 128,
-      frameHeight: 128,
+      frameWidth: 256,
+      frameHeight: 247,
     })
     this.load.spritesheet('farmer', farmerSheetUrl, {
       frameWidth: 128,
@@ -306,42 +307,57 @@ export class FarmScene extends Phaser.Scene {
       .setDepth(61)
       .setVisible(false)
 
-    // Corn warehouse — left side near the farm grid
+    // Corn warehouse — on desktop: left side at y=25% (same level as grid, enough space).
+    // On mobile (8×8 grid) the grid also starts at y=25%, so the warehouse hitbox overlaps
+    // the first-row egg tiles. Fix: move it to x=10%, y=18% and shrink its hit area to a
+    // 40px-radius circle so it sits close to the farm without accidentally capturing egg taps.
+    const isMobile = FARM_GRID.cols === 8
+    const cwhX = isMobile ? width * 0.2 : width * LAYOUT.cornWarehouse.x
+    const cwhY = isMobile ? height * 0.22 : height * LAYOUT.cornWarehouse.y
+    const cwhScale = (isMobile ? 0.65 : LAYOUT.cornWarehouse.scale) * this.sf
+
     this.cornWarehouseSprite = this.add
-      .sprite(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y, 'corn_warehouse', 0)
+      .sprite(cwhX, cwhY, 'corn_warehouse', 0)
       .setOrigin(0.5, 0.5)
-      .setScale(LAYOUT.cornWarehouse.scale * this.sf)
+      .setScale(cwhScale)
       .setDepth(30)
-      .setInteractive({ useHandCursor: true })
+    if (isMobile) {
+      this.cornWarehouseSprite.setInteractive({
+        hitArea: new Phaser.Geom.Circle(128, 128, 65),
+        hitAreaCallback: Phaser.Geom.Circle.Contains,
+        useHandCursor: true,
+      })
+    } else {
+      this.cornWarehouseSprite.setInteractive({ useHandCursor: true })
+    }
     this.cornWarehouseSprite.on('pointerdown', () => {
       useFarmStore.getState().rechargeCorn()
       this.cornWarehouseSprite.setFrame(1)
       this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
     })
     this.cornTooltip = this.add
-      .text(
-        width * LAYOUT.cornWarehouse.x,
-        height * LAYOUT.cornWarehouse.y - 120 * this.sf,
-        '🌽 Tienda de maíz',
-        {
-          fontFamily: 'Kalam',
-          fontSize: `${Math.round(17 * this.sf)}px`,
-          color: '#FFD700',
-          backgroundColor: '#1a0800ee',
-          padding: { x: 10, y: 5 },
-          stroke: '#000000',
-          strokeThickness: 3,
-        }
-      )
+      .text(cwhX, cwhY - 90 * this.sf, '🌽 Tienda de maíz', {
+        fontFamily: 'Kalam',
+        fontSize: `${Math.round(17 * this.sf)}px`,
+        color: '#FFD700',
+        backgroundColor: '#1a0800ee',
+        padding: { x: 10, y: 5 },
+        stroke: '#000000',
+        strokeThickness: 3,
+      })
       .setOrigin(0.5, 1)
       .setDepth(60)
       .setVisible(false)
-    this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, LAYOUT.cornWarehouse.scale)
+    this.addHoverEffect(
+      this.cornWarehouseSprite,
+      this.cornTooltip,
+      isMobile ? 0.65 : LAYOUT.cornWarehouse.scale
+    )
 
     this.cornStockBadge = this.add
       .sprite(
-        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX * this.sf,
-        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY * this.sf,
+        cwhX + (isMobile ? 55 : LAYOUT.cornStockBadge.offX) * this.sf,
+        cwhY + (isMobile ? 28 : 0) * this.sf,
         'corn_stock_badge',
         0
       )
@@ -349,15 +365,15 @@ export class FarmScene extends Phaser.Scene {
       .setScale(LAYOUT.cornStockBadge.scale * this.sf)
       .setDepth(32)
 
-    // Corn price — coin + text to the LEFT of the warehouse barn (visible only when store is open)
+    // Corn price — on desktop: coin+text to the left above the warehouse.
+    // On mobile: displayed above-right of the warehouse to stay clear of the grid.
     const cornBatchPrice = FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge
+    const cornPriceY = isMobile ? cwhY - 45 * this.sf : height * LAYOUT.cornPriceCoin.y
+    const cornPriceCoinX = isMobile
+      ? cwhX + 50 * this.sf
+      : width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf
     this.cornPriceCoin = this.add
-      .sprite(
-        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf,
-        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY * this.sf,
-        'coin',
-        0
-      )
+      .sprite(cornPriceCoinX, cornPriceY, 'coin', 0)
       .setOrigin(0.5, 0.5)
       .setScale(LAYOUT.cornPriceCoin.scale * this.sf)
       .setDepth(33)
@@ -365,8 +381,10 @@ export class FarmScene extends Phaser.Scene {
     this.cornPriceCoin.play('coin_spin')
     this.cornPriceText = this.add
       .text(
-        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
-        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY * this.sf,
+        isMobile
+          ? cwhX + 72 * this.sf
+          : width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
+        cornPriceY,
         `$${cornBatchPrice}`,
         {
           fontSize: `${Math.round(28 * this.sf)}px`,
@@ -410,12 +428,12 @@ export class FarmScene extends Phaser.Scene {
     this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, LAYOUT.warehouseSprite.scale)
 
     // Cost-flow scroll buttons — one at each production stage
-    this.scrollMPD = this.createScrollButton(
-      width * LAYOUT.scrollMPD.x,
-      height * LAYOUT.scrollMPD.y,
-      'MPD',
-      'scroll-mpd'
-    ).setScale(this.sf)
+    // On mobile the MPD scroll overlaps the corn warehouse; shift it below-left.
+    const scrollMPDx = isMobile ? width * 0.07 : width * LAYOUT.scrollMPD.x
+    const scrollMPDy = isMobile ? height * 0.38 : height * LAYOUT.scrollMPD.y
+    this.scrollMPD = this.createScrollButton(scrollMPDx, scrollMPDy, 'MPD', 'scroll-mpd').setScale(
+      this.sf
+    )
     this.scrollWIP = this.createScrollButton(
       width * LAYOUT.scrollWIP.x,
       height * LAYOUT.scrollWIP.y,
@@ -449,7 +467,16 @@ export class FarmScene extends Phaser.Scene {
 
   update(): void {
     const farm = useFarmStore.getState()
-    this.input.enabled = useUiStore.getState().farmDialog === null
+    const dialog = useUiStore.getState().farmDialog
+    // When a dialog just closed, pointerout never fired (input was disabled while finger lifted).
+    // Reset all scroll sprites to their resting frame so they don't stay highlighted.
+    if (this.prevFarmDialog !== null && dialog === null) {
+      for (const c of [this.scrollMPD, this.scrollWIP, this.scrollPT]) {
+        ;(c.list[0] as Phaser.GameObjects.Sprite).setFrame(0)
+      }
+    }
+    this.prevFarmDialog = dialog
+    this.input.enabled = dialog === null
 
     this.reconcileChickens(farm.chickens)
     this.reconcilePlacedCorn(farm.placedCorn, farm.chickens)
@@ -1095,28 +1122,33 @@ export class FarmScene extends Phaser.Scene {
     // Reposition and rescale static sprites
     this.cornTooltip.setVisible(false)
     this.warehouseTooltip.setVisible(false)
-    this.cornWarehouseSprite
-      .setPosition(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y)
-      .setScale(LAYOUT.cornWarehouse.scale * this.sf)
-    this.cornTooltip
-      .setPosition(width * LAYOUT.cornWarehouse.x, height * LAYOUT.cornWarehouse.y - 120 * this.sf)
-      .setFontSize(Math.round(17 * this.sf))
+    const isMobile = FARM_GRID.cols === 8
+    const cwhX = isMobile ? width * 0.2 : width * LAYOUT.cornWarehouse.x
+    const cwhY = isMobile ? height * 0.22 : height * LAYOUT.cornWarehouse.y
+    const cwhScale = (isMobile ? 0.65 : LAYOUT.cornWarehouse.scale) * this.sf
+    const cornPriceY = isMobile ? cwhY - 45 * this.sf : height * LAYOUT.cornPriceCoin.y
+    this.cornWarehouseSprite.setPosition(cwhX, cwhY).setScale(cwhScale)
+    this.cornTooltip.setPosition(cwhX, cwhY - 90 * this.sf).setFontSize(Math.round(17 * this.sf))
     this.cornStockBadge
       .setPosition(
-        width * LAYOUT.cornStockBadge.x + LAYOUT.cornStockBadge.offX * this.sf,
-        height * LAYOUT.cornStockBadge.y + LAYOUT.cornStockBadge.offY * this.sf
+        cwhX + (isMobile ? 55 : LAYOUT.cornStockBadge.offX) * this.sf,
+        cwhY + (isMobile ? 28 : 0) * this.sf
       )
       .setScale(LAYOUT.cornStockBadge.scale * this.sf)
     this.cornPriceCoin
       .setPosition(
-        width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf,
-        height * LAYOUT.cornPriceCoin.y + LAYOUT.cornPriceCoin.offY * this.sf
+        isMobile
+          ? cwhX + 50 * this.sf
+          : width * LAYOUT.cornPriceCoin.x + LAYOUT.cornPriceCoin.offX * this.sf,
+        cornPriceY
       )
       .setScale(LAYOUT.cornPriceCoin.scale * this.sf)
     this.cornPriceText
       .setPosition(
-        width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
-        height * LAYOUT.cornPriceText.y + LAYOUT.cornPriceText.offY * this.sf
+        isMobile
+          ? cwhX + 72 * this.sf
+          : width * LAYOUT.cornPriceText.x + LAYOUT.cornPriceText.offX * this.sf,
+        cornPriceY
       )
       .setFontSize(Math.round(28 * this.sf))
     this.warehouseSprite
@@ -1130,8 +1162,10 @@ export class FarmScene extends Phaser.Scene {
       .setFontSize(Math.round(17 * this.sf))
 
     // Scroll containers: kill current float tween, reposition, rescale, restart
+    const scrollMPDx = isMobile ? width * 0.07 : width * LAYOUT.scrollMPD.x
+    const scrollMPDy = isMobile ? height * 0.38 : height * LAYOUT.scrollMPD.y
     for (const [container, lx, ly] of [
-      [this.scrollMPD, LAYOUT.scrollMPD.x, LAYOUT.scrollMPD.y],
+      [this.scrollMPD, scrollMPDx / width, scrollMPDy / height],
       [this.scrollWIP, LAYOUT.scrollWIP.x, LAYOUT.scrollWIP.y],
       [this.scrollPT, LAYOUT.scrollPT.x, LAYOUT.scrollPT.y],
     ] as [Phaser.GameObjects.Container, number, number][]) {

@@ -67,7 +67,7 @@ export function GameOverModal({ onRetry, onExit }: Props) {
               opacity: 0.9,
             }}
           >
-            Todas las gallinas murieron de hambre.
+            Todas las gallinas murieron de hambre y no hay fondos suficientes para continuar.
           </p>
 
           <div
