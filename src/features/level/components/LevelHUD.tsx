@@ -155,7 +155,7 @@ export function LevelHUD() {
               ? `Necesitas $${cfg.chickenBuyPrice}`
               : `Comprar gallina ($${cfg.chickenBuyPrice})`
         }
-        className="pointer-events-auto absolute left-3 top-3 flex items-center rounded-xl transition-transform active:scale-95"
+        className={`pointer-events-auto absolute left-3 top-3 flex items-center rounded-xl transition-transform active:scale-95 ${!buyDisabled ? 'hover:scale-105' : ''}`}
         style={{
           ...PANEL_STYLE,
           gap: s.gap,
@@ -304,7 +304,7 @@ export function LevelHUD() {
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
           onClick={() => setFarmDialog('menu')}
-          className="rounded-xl font-bold transition-colors"
+          className="rounded-xl font-bold transition-transform hover:scale-105 active:scale-95"
           style={{
             ...PANEL_STYLE,
             ...TEXT_MAIN,

@@ -60,6 +60,25 @@ export function FarmGamePage() {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-surface-primary">
       <FarmGameCanvas />
+      {/* Mobile-only warehouse label — HTML so it renders at native device resolution */}
+      <div
+        className="pointer-events-none lg:hidden"
+        style={{
+          position: 'absolute',
+          left: '86%',
+          top: 'calc(88% - 13vh)',
+          transform: 'translateX(-50%)',
+          fontFamily: "'Kalam', cursive",
+          fontSize: '11px',
+          color: '#F5DEB3',
+          textShadow:
+            '1px 1px 0 #3A1500, -1px -1px 0 #3A1500, 1px -1px 0 #3A1500, -1px 1px 0 #3A1500',
+          whiteSpace: 'nowrap',
+          zIndex: 10,
+        }}
+      >
+        Almacén
+      </div>
       <LevelHUD />
       <TutorialOverlay />
       <LevelIntroModal />

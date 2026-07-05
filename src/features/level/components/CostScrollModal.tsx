@@ -447,7 +447,7 @@ export function CostScrollModal() {
           </div>
 
           {/* Animated page content */}
-          <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
+          <div style={{ flex: 1, overflowX: 'hidden', overflowY: 'auto', position: 'relative' }}>
             <AnimatePresence custom={dir} mode="wait">
               <motion.div
                 key={pageKey}

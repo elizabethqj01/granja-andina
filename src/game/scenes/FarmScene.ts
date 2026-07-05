@@ -44,7 +44,7 @@ const LAYOUT = {
   scrollMPD: { x: 0.18, y: 0.22 },
   scrollWIP: { x: 0.8, y: 0.38 },
   scrollPT: { x: 0.79, y: 0.82 },
-  farmerHome: { x: 0.5, y: 0.82 },
+  farmerHome: { x: 0.5, y: 0.9 },
   truck: { y: 0.85 },
   scrollIcon: { scale: 0.88 },
 } as const
@@ -278,8 +278,13 @@ export class FarmScene extends Phaser.Scene {
       repeat: -1,
     })
 
-    // Farmer sprite
-    this.farmerHome.set(width / 2, height * 0.82)
+    // Farmer sprite — on web, anchor home to the bottom corner of the iso grid so it
+    // scales correctly at any viewport size. On mobile keep the fixed percentage.
+    const farmerHomeY =
+      FARM_GRID.cols === 8
+        ? height * LAYOUT.farmerHome.y
+        : this.iso.toScreen(FARM_GRID.cols - 2, FARM_GRID.rows - 2).y
+    this.farmerHome.set(width / 2, farmerHomeY)
     this.farmer = this.add
       .sprite(this.farmerHome.x, this.farmerHome.y, 'farmer')
       .setOrigin(0.5, 0.62)
@@ -348,11 +353,9 @@ export class FarmScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(60)
       .setVisible(false)
-    this.addHoverEffect(
-      this.cornWarehouseSprite,
-      this.cornTooltip,
-      isMobile ? 0.65 : LAYOUT.cornWarehouse.scale
-    )
+    if (!isMobile) {
+      this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, LAYOUT.cornWarehouse.scale)
+    }
 
     this.cornStockBadge = this.add
       .sprite(
@@ -406,7 +409,7 @@ export class FarmScene extends Phaser.Scene {
       .setScale(LAYOUT.warehouseSprite.scale * this.sf)
       .setDepth(30)
       .setInteractive({ useHandCursor: true })
-    this.warehouseSprite.on('pointerdown', () => this.openSellModal())
+    this.warehouseSprite.on('pointerup', () => this.openSellModal())
     this.warehouseTooltip = this.add
       .text(
         width * LAYOUT.warehouseSprite.x,
@@ -425,12 +428,13 @@ export class FarmScene extends Phaser.Scene {
       .setOrigin(0.5, 1)
       .setDepth(60)
       .setVisible(false)
-    this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, LAYOUT.warehouseSprite.scale)
-
+    if (!isMobile) {
+      this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, LAYOUT.warehouseSprite.scale)
+    }
     // Cost-flow scroll buttons — one at each production stage
-    // On mobile the MPD scroll overlaps the corn warehouse; shift it below-left.
-    const scrollMPDx = isMobile ? width * 0.07 : width * LAYOUT.scrollMPD.x
-    const scrollMPDy = isMobile ? height * 0.38 : height * LAYOUT.scrollMPD.y
+    // On mobile the MPD scroll sits just below the corn warehouse, centred on the same X axis.
+    const scrollMPDx = isMobile ? width * 0.14 : width * LAYOUT.scrollMPD.x
+    const scrollMPDy = isMobile ? height * 0.32 : height * LAYOUT.scrollMPD.y
     this.scrollMPD = this.createScrollButton(scrollMPDx, scrollMPDy, 'MPD', 'scroll-mpd').setScale(
       this.sf
     )
@@ -660,6 +664,28 @@ export class FarmScene extends Phaser.Scene {
         ease: 'Back.Out',
       })
       sprite.setTint(0xffe090)
+    })
+    sprite.on('pointerdown', () => {
+      const base = layoutScale * this.sf
+      this.tweens.killTweensOf(sprite)
+      this.tweens.add({
+        targets: sprite,
+        scaleX: base * 0.92,
+        scaleY: base * 0.92,
+        duration: 80,
+        ease: 'Quad.In',
+      })
+    })
+    sprite.on('pointerup', () => {
+      const base = layoutScale * this.sf
+      this.tweens.killTweensOf(sprite)
+      this.tweens.add({
+        targets: sprite,
+        scaleX: base,
+        scaleY: base,
+        duration: 120,
+        ease: 'Quad.Out',
+      })
     })
     sprite.on('pointerout', () => {
       const base = layoutScale * this.sf
@@ -1162,8 +1188,8 @@ export class FarmScene extends Phaser.Scene {
       .setFontSize(Math.round(17 * this.sf))
 
     // Scroll containers: kill current float tween, reposition, rescale, restart
-    const scrollMPDx = isMobile ? width * 0.07 : width * LAYOUT.scrollMPD.x
-    const scrollMPDy = isMobile ? height * 0.38 : height * LAYOUT.scrollMPD.y
+    const scrollMPDx = isMobile ? width * 0.2 : width * LAYOUT.scrollMPD.x
+    const scrollMPDy = isMobile ? height * 0.29 : height * LAYOUT.scrollMPD.y
     for (const [container, lx, ly] of [
       [this.scrollMPD, scrollMPDx / width, scrollMPDy / height],
       [this.scrollWIP, LAYOUT.scrollWIP.x, LAYOUT.scrollWIP.y],
@@ -1183,7 +1209,10 @@ export class FarmScene extends Phaser.Scene {
       })
     }
 
-    this.farmerHome.set(width * LAYOUT.farmerHome.x, height * LAYOUT.farmerHome.y)
+    const farmerHomeY = isMobile
+      ? height * LAYOUT.farmerHome.y
+      : this.iso.toScreen(FARM_GRID.cols - 2, FARM_GRID.rows - 2).y
+    this.farmerHome.set(width / 2, farmerHomeY)
     this.farmer.setScale(FARM_LEVEL1.farmerScale * this.sf)
 
     if (!this.truckAnimating) {
