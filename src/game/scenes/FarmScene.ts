@@ -337,8 +337,10 @@ export class FarmScene extends Phaser.Scene {
     }
     this.cornWarehouseSprite.on('pointerdown', () => {
       useFarmStore.getState().rechargeCorn()
-      this.cornWarehouseSprite.setFrame(1)
-      this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
+      if (!isMobile) {
+        this.cornWarehouseSprite.setFrame(1)
+        this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
+      }
     })
     this.cornTooltip = this.add
       .text(cwhX, cwhY - 90 * this.sf, '🌽 Tienda de maíz', {
@@ -355,6 +357,8 @@ export class FarmScene extends Phaser.Scene {
       .setVisible(false)
     if (!isMobile) {
       this.addHoverEffect(this.cornWarehouseSprite, this.cornTooltip, LAYOUT.cornWarehouse.scale)
+    } else {
+      this.addPressEffect(this.cornWarehouseSprite)
     }
 
     this.cornStockBadge = this.add
@@ -430,6 +434,8 @@ export class FarmScene extends Phaser.Scene {
       .setVisible(false)
     if (!isMobile) {
       this.addHoverEffect(this.warehouseSprite, this.warehouseTooltip, LAYOUT.warehouseSprite.scale)
+    } else {
+      this.addPressEffect(this.warehouseSprite)
     }
     // Cost-flow scroll buttons — one at each production stage
     // On mobile the MPD scroll sits just below the corn warehouse, centred on the same X axis.
@@ -699,6 +705,29 @@ export class FarmScene extends Phaser.Scene {
         ease: 'Quad.Out',
       })
       sprite.clearTint()
+    })
+  }
+
+  private addPressEffect(sprite: Phaser.GameObjects.Sprite): void {
+    sprite.on('pointerdown', () => {
+      const base = sprite.scaleX
+      this.tweens.killTweensOf(sprite)
+      this.tweens.add({
+        targets: sprite,
+        scaleX: base * 0.92,
+        scaleY: base * 0.92,
+        duration: 80,
+        ease: 'Quad.In',
+        onComplete: () => {
+          this.tweens.add({
+            targets: sprite,
+            scaleX: base,
+            scaleY: base,
+            duration: 120,
+            ease: 'Quad.Out',
+          })
+        },
+      })
     })
   }
 

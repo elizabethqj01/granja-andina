@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { motion } from 'framer-motion'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
@@ -145,7 +146,7 @@ export function LevelHUD() {
   return (
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* Top-left — chicken shop */}
-      <button
+      <motion.button
         onClick={buyDisabled ? undefined : buyChicken}
         disabled={buyDisabled}
         title={
@@ -155,7 +156,9 @@ export function LevelHUD() {
               ? `Necesitas $${cfg.chickenBuyPrice}`
               : `Comprar gallina ($${cfg.chickenBuyPrice})`
         }
-        className={`pointer-events-auto absolute left-3 top-3 flex items-center rounded-xl transition-transform active:scale-95 ${!buyDisabled ? 'hover:scale-105' : ''}`}
+        whileTap={!buyDisabled ? { scale: 0.95 } : undefined}
+        transition={{ duration: 0.075 }}
+        className="pointer-events-auto absolute left-3 top-3 flex items-center rounded-xl"
         style={{
           ...PANEL_STYLE,
           gap: s.gap,
@@ -176,7 +179,7 @@ export function LevelHUD() {
             <CoinSprite size={Math.round(13 * sf)} />${cfg.chickenBuyPrice}
           </span>
         </div>
-      </button>
+      </motion.button>
 
       {/* Top-right — main HUD panel */}
       <div
@@ -303,8 +306,8 @@ export function LevelHUD() {
       {/* Bottom-left — menu button */}
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
-          onClick={() => setFarmDialog('menu')}
-          className="rounded-xl font-bold transition-transform hover:scale-105 active:scale-95"
+          onClick={() => setTimeout(() => setFarmDialog('menu'), 150)}
+          className="rounded-xl font-bold transition-transform duration-75 active:scale-95"
           style={{
             ...PANEL_STYLE,
             ...TEXT_MAIN,
