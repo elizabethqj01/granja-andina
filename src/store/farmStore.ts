@@ -66,6 +66,7 @@ export interface FarmState {
   cornPurchasedValue: number
   modAccrued: number
   cifAccrued: number
+  chickenCostAccrued: number
   revenue: number
   eggsSold: number
 
@@ -74,6 +75,7 @@ export interface FarmState {
   pendingSaleIncome: number
   pendingSaleEggs: number
 
+  chickensBought: number
   levelComplete: boolean
   levelFailed: boolean
   stars: LevelStars
@@ -203,11 +205,13 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     cornPurchasedValue: cfg.initialCornStock * cfg.cornUnitCost,
     modAccrued: 0,
     cifAccrued: 0,
+    chickenCostAccrued: 0,
     revenue: 0,
     eggsSold: 0,
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
+    chickensBought: cfg.initialChickens,
     levelComplete: false,
     levelFailed: false,
     stars: 0,
@@ -420,9 +424,8 @@ export function advanceFarm(
   }
 
   // 5) Objective check — eggs always required; chickens optional (0 = disabled)
-  const livingCount = next.chickens.filter((c) => !c.dead).length
   const eggsDone = next.eggsCollectedTotal >= cfg.objectiveEggs
-  const chickensDone = cfg.objectiveChickens === 0 || livingCount >= cfg.objectiveChickens
+  const chickensDone = cfg.objectiveChickens === 0 || next.chickensBought >= cfg.objectiveChickens
   if (!next.levelComplete && eggsDone && chickensDone) {
     next.levelComplete = true
     next.stars = computeStars(next.elapsedSec, cfg)
@@ -570,6 +573,8 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       const row = Math.floor(Math.random() * FARM_GRID.rows)
       set({
         cash: s.cash - activeCfg.chickenBuyPrice,
+        chickensBought: s.chickensBought + 1,
+        chickenCostAccrued: s.chickenCostAccrued + activeCfg.chickenBuyPrice,
         chickens: [
           ...s.chickens,
           {

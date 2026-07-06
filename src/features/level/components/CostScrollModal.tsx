@@ -15,6 +15,7 @@ function useCostData() {
   const cornStock = useFarmStore((s) => s.cornStock)
   const modAccrued = useFarmStore((s) => s.modAccrued)
   const cifAccrued = useFarmStore((s) => s.cifAccrued)
+  const chickenCostAccrued = useFarmStore((s) => s.chickenCostAccrued)
   const warehouseEggs = useFarmStore((s) => s.warehouseEggs)
   const groundEggs = useFarmStore((s) => s.groundEggs)
   const eggsCollectedTotal = useFarmStore((s) => s.eggsCollectedTotal)
@@ -30,7 +31,8 @@ function useCostData() {
 
   // Conversion
   const mod = modAccrued
-  const cif = cifAccrued
+  const cifOverhead = cifAccrued
+  const cif = cifOverhead + chickenCostAccrued
 
   // Cost of period
   const costoPeriodo = costoMPD + mod + cif
@@ -58,6 +60,8 @@ function useCostData() {
     invFinalMPD,
     costoMPD,
     mod,
+    cifOverhead,
+    chickenCostAccrued,
     cif,
     costoPeriodo,
     invInicialWIP,
@@ -220,6 +224,12 @@ function WIPContent({ d }: { d: CostData }) {
         value={fmt(d.cif)}
         badge="conversión"
       />
+      {d.chickenCostAccrued > 0 && (
+        <>
+          <Note text={`  · Gastos generales de fábrica: ${fmt(d.cifOverhead)}`} />
+          <Note text={`  · Compra de gallinas: ${fmt(d.chickenCostAccrued)}`} />
+        </>
+      )}
       <Row op="(=)" label="Costo de producción del período" value={fmt(d.costoPeriodo)} total />
       <Spacer />
       <Row label="(+) Inv. inicial en proceso" value={fmt(d.invInicialWIP)} dim />

@@ -107,12 +107,12 @@ export function LevelHUD() {
   const warehouseEggs = useFarmStore((s) => s.warehouseEggs)
   const notification = useFarmStore((s) => s.notification)
   const chickens = useFarmStore((s) => s.chickens)
+  const chickensBought = useFarmStore((s) => s.chickensBought)
   const buyChicken = useFarmStore((s) => s.buyChicken)
   const activeLevelId = useFarmStore((s) => s.activeLevelId)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
 
   const cfg: FarmLevelConfig = activeLevelId === 2 ? FARM_LEVEL2 : FARM_LEVEL1
-  const livingChickens = chickens.filter((c) => !c.dead).length
   const chickensFull = chickens.length >= cfg.maxChickens
   const canAfford = cash >= cfg.chickenBuyPrice
   const buyDisabled = chickensFull || !canAfford
@@ -280,7 +280,7 @@ export function LevelHUD() {
             </span>
             {cfg.objectiveChickens > 0 && (
               <span>
-                🐔 {livingChickens}/{cfg.objectiveChickens}
+                🐔 {chickensBought}/{cfg.objectiveChickens}
               </span>
             )}
           </div>

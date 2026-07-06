@@ -16,8 +16,8 @@ export const FARM_LEVEL1 = {
   // ── Production & labor timing (seconds) ────────────────────────────────────
   eggLayTimeSec: 8,
   farmerCollectTimeSec: 3,
-  modCostPerSec: 5,
-  cifCostPerSec: 2,
+  modCostPerSec: 0.5,
+  cifCostPerSec: 0.25,
 
   // ── Field limits ───────────────────────────────────────────────────────────
   maxGroundEggs: 8,
