@@ -27,8 +27,8 @@ import sfxFarmerWalkUrl from '@/assets/sounds/farmer_walk.mp3'
 import sfxTruckLeaveUrl from '@/assets/sounds/truck_leave.mp3'
 import sfxMusicGameOverUrl from '@/assets/sounds/music_game_over.mp3'
 import sfxChickenLayUrl from '@/assets/sounds/chicken_lay.mp3'
+import sfxEggClickUrl from '@/assets/sounds/egg_click.mp3'
 import sfxModalOpenUrl from '@/assets/sounds/modal_open.mp3'
-import { playSfx } from '@/services/sfx'
 
 // ─── Responsive scaling ────────────────────────────────────────────────────────
 // Design resolution: the game was authored at 1280×720. At runtime we compute
@@ -154,6 +154,7 @@ export class FarmScene extends Phaser.Scene {
     this.load.spritesheet('truck', truckUrl, { frameWidth: 128, frameHeight: 112 })
     this.load.spritesheet('scroll_icon', scrollIconUrl, { frameWidth: 64, frameHeight: 64 })
     this.load.audio('sfx_chicken_lay', sfxChickenLayUrl)
+    this.load.audio('sfx_egg_click', sfxEggClickUrl)
     this.load.audio('sfx_chicken_eat', sfxChickenEatUrl)
     this.load.audio('sfx_chicken_hungry', sfxChickenHungryUrl)
     this.load.audio('sfx_corn_place', sfxCornPlaceUrl)
@@ -1078,8 +1079,9 @@ export class FarmScene extends Phaser.Scene {
           .setDepth(-2)
           .setInteractive({ useHandCursor: true })
         zone.on('pointerdown', () => {
+          const { cornStock } = useFarmStore.getState()
           useFarmStore.getState().placeCorn(col, row)
-          this.sound.play('sfx_corn_place', { volume: 0.5 })
+          if (cornStock > 0) this.sound.play('sfx_corn_place', { volume: 0.5 })
         })
         this.tileZones.push(zone)
       }
@@ -1138,7 +1140,7 @@ export class FarmScene extends Phaser.Scene {
           .setDepth(10)
           .setInteractive({ useHandCursor: true })
         sprite.on('pointerdown', () => {
-          playSfx('btn_click')
+          this.sound.play('sfx_egg_click', { volume: 0.6 })
           useFarmStore.getState().requestCollect(egg.id)
         })
         this.eggSprites.set(egg.id, sprite)
