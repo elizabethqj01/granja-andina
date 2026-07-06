@@ -10,6 +10,10 @@ function fmt(n: number): string {
   return `$${Math.max(0, Math.round(n)).toLocaleString('es-CO')}`
 }
 
+function fmtUnit(n: number): string {
+  return `$${Math.max(0, n).toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+}
+
 function useCostData() {
   const cornPurchasedValue = useFarmStore((s) => s.cornPurchasedValue)
   const cornStock = useFarmStore((s) => s.cornStock)
@@ -33,6 +37,16 @@ function useCostData() {
   const mod = modAccrued
   const cifOverhead = cifAccrued
   const cif = cifOverhead + chickenCostAccrued
+
+  // Derived explanatory values (for student breakdown notes)
+  const modWorkedSec =
+    FARM_LEVEL1.modCostPerSec > 0 ? Math.round(mod / FARM_LEVEL1.modCostPerSec) : 0
+  const cornUnitsBought =
+    FARM_LEVEL1.cornUnitCost > 0 ? Math.round(comprasMPD / FARM_LEVEL1.cornUnitCost) : 0
+  const chickensBought =
+    FARM_LEVEL1.chickenBuyPrice > 0
+      ? Math.round(chickenCostAccrued / FARM_LEVEL1.chickenBuyPrice)
+      : 0
 
   // Cost of period
   const costoPeriodo = costoMPD + mod + cif
@@ -60,9 +74,12 @@ function useCostData() {
     invFinalMPD,
     costoMPD,
     mod,
+    modWorkedSec,
     cifOverhead,
     chickenCostAccrued,
     cif,
+    cornUnitsBought,
+    chickensBought,
     costoPeriodo,
     invInicialWIP,
     invFinalWIP,
@@ -75,6 +92,8 @@ function useCostData() {
     cornStock,
     groundEggsCount: groundEggs.length,
     warehouseEggs,
+    totalEggs,
+    costPerEgg,
     elapsedSec,
   }
 }
@@ -200,6 +219,7 @@ function MPDContent({ d }: { d: CostData }) {
       <Spacer />
       <Row label="Inv. inicial MPD" value={fmt(d.invInicialMPD)} dim />
       <Row op="(+)" label="Compras netas de MPD" value={fmt(d.comprasMPD)} />
+      <Note text={`${d.cornUnitsBought} unidades compradas × $${FARM_LEVEL1.cornUnitCost} c/u`} />
       <Row op="(=)" label="Disponible de MPD" value={fmt(d.disponibleMPD)} sub />
       <Row op="(−)" label="Inv. final MPD" value={fmt(d.invFinalMPD)} />
       <Note text={`${d.cornStock} mazorcas × $${FARM_LEVEL1.cornUnitCost} c/u`} />
@@ -218,23 +238,33 @@ function WIPContent({ d }: { d: CostData }) {
       <Spacer />
       <Row label="Costo de MPD" value={fmt(d.costoMPD)} dim />
       <Row op="(+)" label="MOD — Mano de obra directa" value={fmt(d.mod)} badge="conversión" />
+      <Note
+        text={`Tasa $${FARM_LEVEL1.modCostPerSec}/seg · ${d.modWorkedSec} seg trabajados por el granjero`}
+      />
       <Row
         op="(+)"
         label="CIF — Costos ind. de fabricación"
         value={fmt(d.cif)}
         badge="conversión"
       />
+      <Note
+        text={`  · Gastos generales ($${FARM_LEVEL1.cifCostPerSec}/seg × ${d.elapsedSec} seg): ${fmt(d.cifOverhead)}`}
+      />
       {d.chickenCostAccrued > 0 && (
-        <>
-          <Note text={`  · Gastos generales de fábrica: ${fmt(d.cifOverhead)}`} />
-          <Note text={`  · Compra de gallinas: ${fmt(d.chickenCostAccrued)}`} />
-        </>
+        <Note
+          text={`  · Compra de gallinas: ${d.chickensBought} × $${FARM_LEVEL1.chickenBuyPrice} c/u = ${fmt(d.chickenCostAccrued)}`}
+        />
       )}
       <Row op="(=)" label="Costo de producción del período" value={fmt(d.costoPeriodo)} total />
+      <Note
+        text={`Costo unitario por huevo = ${fmt(d.costoPeriodo)} ÷ ${d.totalEggs} huevo(s) producidos = ${fmtUnit(d.costPerEgg)} c/u`}
+      />
       <Spacer />
       <Row label="(+) Inv. inicial en proceso" value={fmt(d.invInicialWIP)} dim />
       <Row op="(−)" label="Inv. final en proceso" value={fmt(d.invFinalWIP)} />
-      <Note text={`${d.groundEggsCount} huevo(s) en suelo aún sin recolectar`} />
+      <Note
+        text={`${d.groundEggsCount} huevo(s) en suelo × ${fmtUnit(d.costPerEgg)} c/u aún sin recolectar`}
+      />
       <Row op="(=)" label="Costo de producción terminada" value={fmt(d.costoTerminada)} total />
       <Spacer />
       <Arrow text="↓  El costo terminado fluye al almacén de productos" />
@@ -252,7 +282,7 @@ function PTContent({ d }: { d: CostData }) {
       <Row label="Costo de prod. terminada" value={fmt(d.costoTerminada)} dim />
       <Row label="(+) Inv. inicial prod. terminada" value={fmt(d.invInicialPT)} dim />
       <Row op="(−)" label="Inv. final prod. terminada" value={fmt(d.invFinalPT)} />
-      <Note text={`${d.warehouseEggs} huevo(s) en almacén`} />
+      <Note text={`${d.warehouseEggs} huevo(s) en almacén × ${fmtUnit(d.costPerEgg)} c/u`} />
       <Row op="(=)" label="Costo de ventas" value={fmt(d.costoVentas)} total />
       <Spacer />
       {/* Result */}
