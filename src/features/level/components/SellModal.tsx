@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { playSfx } from '@/services/sfx'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
@@ -58,6 +59,7 @@ export function SellModal() {
 
   function handleSell() {
     if (!canSell) return
+    playSfx('sell_confirm')
     initSale(eggCount, chickenCount)
     handleClose()
   }
@@ -123,7 +125,10 @@ export function SellModal() {
           </div>
           <div className="flex items-center" style={{ gap: `${p(8)}px` }}>
             <button
-              onClick={() => setEggCount((c) => Math.max(0, c - 1))}
+              onClick={() => {
+                playSfx('btn_click')
+                setEggCount((c) => Math.max(0, c - 1))
+              }}
               className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
               style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
             >
@@ -140,14 +145,20 @@ export function SellModal() {
               {eggCount}
             </span>
             <button
-              onClick={() => setEggCount((c) => Math.min(warehouseEggs, c + 1))}
+              onClick={() => {
+                playSfx('btn_click')
+                setEggCount((c) => Math.min(warehouseEggs, c + 1))
+              }}
               className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
               style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
             >
               +
             </button>
             <button
-              onClick={() => setEggCount(warehouseEggs)}
+              onClick={() => {
+                playSfx('btn_click')
+                setEggCount(warehouseEggs)
+              }}
               className="rounded-lg bg-amber-900/60 font-bold transition-colors hover:bg-amber-800/80"
               style={{ ...TEXT_LABEL, fontSize: `${p(11, 12)}px`, padding: `${p(4)}px ${p(10)}px` }}
             >
@@ -170,7 +181,10 @@ export function SellModal() {
             </div>
             <div className="flex items-center" style={{ gap: `${p(8)}px` }}>
               <button
-                onClick={() => setChickenCount((c) => Math.max(0, c - 1))}
+                onClick={() => {
+                  playSfx('btn_click')
+                  setChickenCount((c) => Math.max(0, c - 1))
+                }}
                 className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
                 style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
               >
@@ -187,7 +201,10 @@ export function SellModal() {
                 {chickenCount}
               </span>
               <button
-                onClick={() => setChickenCount((c) => Math.min(chickensSellable, c + 1))}
+                onClick={() => {
+                  playSfx('btn_click')
+                  setChickenCount((c) => Math.min(chickensSellable, c + 1))
+                }}
                 className="rounded-lg bg-amber-900/60 font-bold leading-none transition-colors hover:bg-amber-800/80"
                 style={{ ...TEXT_MAIN, width: btnW, height: btnH, fontSize: `${p(18, 16)}px` }}
               >

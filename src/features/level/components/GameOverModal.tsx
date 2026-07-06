@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { playSfx } from '@/services/sfx'
 import { useFarmStore } from '@/store/farmStore'
 import { useViewportSf } from '@/hooks/useViewportSf'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
@@ -86,7 +87,10 @@ export function GameOverModal({ onRetry, onExit }: Props) {
 
           <div style={{ display: 'flex', gap: `${p(10)}px` }}>
             <button
-              onClick={onExit}
+              onClick={() => {
+                playSfx('btn_click')
+                onExit()
+              }}
               style={{
                 flex: 1,
                 padding: `${p(11)}px`,
@@ -102,7 +106,10 @@ export function GameOverModal({ onRetry, onExit }: Props) {
               🗺 Salir al mapa
             </button>
             <button
-              onClick={onRetry}
+              onClick={() => {
+                playSfx('btn_click')
+                onRetry()
+              }}
               style={{
                 flex: 1,
                 padding: `${p(11)}px`,

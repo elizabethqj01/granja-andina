@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { motion } from 'framer-motion'
+import { playSfx } from '@/services/sfx'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
@@ -147,7 +148,14 @@ export function LevelHUD() {
     <div className="pointer-events-none absolute inset-0 select-none">
       {/* Top-left — chicken shop */}
       <motion.button
-        onClick={buyDisabled ? undefined : buyChicken}
+        onClick={
+          buyDisabled
+            ? undefined
+            : () => {
+                playSfx('btn_buy')
+                buyChicken()
+              }
+        }
         disabled={buyDisabled}
         title={
           chickensFull
@@ -306,7 +314,10 @@ export function LevelHUD() {
       {/* Bottom-left — menu button */}
       <div className="pointer-events-auto absolute bottom-3 left-3">
         <button
-          onClick={() => setTimeout(() => setFarmDialog('menu'), 150)}
+          onClick={() => {
+            playSfx('btn_click')
+            setTimeout(() => setFarmDialog('menu'), 150)
+          }}
           className="rounded-xl font-bold transition-transform duration-75 active:scale-95"
           style={{
             ...PANEL_STYLE,

@@ -19,6 +19,16 @@ import coinUrl from '@/assets/sprites/coin.png'
 import warehouseUrl from '@/assets/sprites/warehouse..png'
 import truckUrl from '@/assets/sprites/truck.png'
 import scrollIconUrl from '@/assets/sprites/scroll_icon.png'
+import sfxChickenEatUrl from '@/assets/sounds/chicken_eat.mp3'
+import sfxChickenHungryUrl from '@/assets/sounds/chicken_hungry.mp3'
+import sfxCornPlaceUrl from '@/assets/sounds/corn_place.mp3'
+import sfxCornRechargeUrl from '@/assets/sounds/corn_recharge.mp3'
+import sfxFarmerWalkUrl from '@/assets/sounds/farmer_walk.mp3'
+import sfxTruckLeaveUrl from '@/assets/sounds/truck_leave.mp3'
+import sfxMusicGameOverUrl from '@/assets/sounds/music_game_over.mp3'
+import sfxChickenLayUrl from '@/assets/sounds/chicken_lay.mp3'
+import sfxModalOpenUrl from '@/assets/sounds/modal_open.mp3'
+import { playSfx } from '@/services/sfx'
 
 // ─── Responsive scaling ────────────────────────────────────────────────────────
 // Design resolution: the game was authored at 1280×720. At runtime we compute
@@ -109,6 +119,10 @@ export class FarmScene extends Phaser.Scene {
   private truckAnimating = false
   private sf = 1 // viewport scale factor relative to 1280×720 design resolution
   private prevFarmDialog: string | null = null
+  private chickenPrevAnims = new Map<string, string>()
+  private chickenHungryIds = new Set<string>()
+  private levelFailedPrev = false
+  private farmerWalkSound?: Phaser.Sound.BaseSound
 
   constructor() {
     super({ key: 'Farm' })
@@ -139,6 +153,15 @@ export class FarmScene extends Phaser.Scene {
     this.load.spritesheet('warehouse', warehouseUrl, { frameWidth: 128, frameHeight: 160 })
     this.load.spritesheet('truck', truckUrl, { frameWidth: 128, frameHeight: 112 })
     this.load.spritesheet('scroll_icon', scrollIconUrl, { frameWidth: 64, frameHeight: 64 })
+    this.load.audio('sfx_chicken_lay', sfxChickenLayUrl)
+    this.load.audio('sfx_chicken_eat', sfxChickenEatUrl)
+    this.load.audio('sfx_chicken_hungry', sfxChickenHungryUrl)
+    this.load.audio('sfx_corn_place', sfxCornPlaceUrl)
+    this.load.audio('sfx_corn_recharge', sfxCornRechargeUrl)
+    this.load.audio('sfx_farmer_walk', sfxFarmerWalkUrl)
+    this.load.audio('sfx_truck_leave', sfxTruckLeaveUrl)
+    this.load.audio('sfx_music_game_over', sfxMusicGameOverUrl)
+    this.load.audio('sfx_modal_open', sfxModalOpenUrl)
   }
 
   create(): void {
@@ -337,6 +360,7 @@ export class FarmScene extends Phaser.Scene {
     }
     this.cornWarehouseSprite.on('pointerdown', () => {
       useFarmStore.getState().rechargeCorn()
+      this.sound.play('sfx_corn_recharge', { volume: 0.6 })
       if (!isMobile) {
         this.cornWarehouseSprite.setFrame(1)
         this.time.delayedCall(400, () => this.cornWarehouseSprite.setFrame(0))
@@ -457,11 +481,13 @@ export class FarmScene extends Phaser.Scene {
       'scroll-pt'
     ).setScale(this.sf)
 
+    this.farmerWalkSound = this.sound.add('sfx_farmer_walk', { loop: true, volume: 0.4 })
     this.scale.on('resize', () => this.relayout())
   }
 
   private openSellModal(): void {
     if (useFarmStore.getState().saleState !== 'idle') return
+    this.sound.play('sfx_modal_open', { volume: 0.6 })
     useUiStore.getState().setFarmDialog('sell')
   }
 
@@ -511,6 +537,11 @@ export class FarmScene extends Phaser.Scene {
     if (farm.saleState === 'in-transit' && !this.truckAnimating) {
       this.startTruckAnimation()
     }
+
+    if (farm.levelFailed && !this.levelFailedPrev) {
+      this.sound.play('sfx_music_game_over', { volume: 0.7 })
+    }
+    this.levelFailedPrev = farm.levelFailed
 
     this.updateButterflies()
   }
@@ -599,7 +630,15 @@ export class FarmScene extends Phaser.Scene {
       else if (chicken.state === 'eating') desiredAnim = 'chicken_eat'
       else if (chicken.state === 'seeking') desiredAnim = 'chicken_walk'
       else desiredAnim = isMoving ? 'chicken_walk' : 'chicken_idle'
-      if (currentAnim !== desiredAnim) sprite.play(desiredAnim)
+      if (currentAnim !== desiredAnim) {
+        sprite.play(desiredAnim)
+        if (desiredAnim === 'chicken_eat') {
+          this.sound.play('sfx_chicken_eat', { volume: 0.5 })
+        } else if (desiredAnim === 'chicken_lay') {
+          this.sound.play('sfx_chicken_lay', { volume: 0.6 })
+        }
+        this.chickenPrevAnims.set(chicken.id, desiredAnim)
+      }
 
       this.drawChickenHunger(
         this.chickenHungerBars.get(chicken.id)!,
@@ -638,6 +677,12 @@ export class FarmScene extends Phaser.Scene {
     // Alert whenever hungry — so the player always knows which chickens need corn
     alert.setPosition(cx, top - 4).setVisible(isHungry)
     if (isHungry) alert.setAlpha(0.55 + 0.45 * Math.sin(this.time.now / 200))
+    if (isHungry && !this.chickenHungryIds.has(chicken.id)) {
+      this.chickenHungryIds.add(chicken.id)
+      this.sound.play('sfx_chicken_hungry', { volume: 0.6 })
+    } else if (!isHungry) {
+      this.chickenHungryIds.delete(chicken.id)
+    }
   }
 
   private destroyChickenVisuals(): void {
@@ -648,6 +693,8 @@ export class FarmScene extends Phaser.Scene {
     this.chickenHungerBars.clear()
     this.chickenHungerAlerts.clear()
     this.dyingChickenIds.clear()
+    this.chickenPrevAnims.clear()
+    this.chickenHungryIds.clear()
   }
 
   // ── Hover effects ──────────────────────────────────────────────────────────
@@ -763,7 +810,10 @@ export class FarmScene extends Phaser.Scene {
 
     container.on('pointerover', () => sprite.setFrame(1))
     container.on('pointerout', () => sprite.setFrame(0))
-    container.on('pointerdown', () => useUiStore.getState().setFarmDialog(dialog as 'scroll-mpd'))
+    container.on('pointerdown', () => {
+      this.sound.play('sfx_modal_open', { volume: 0.6 })
+      useUiStore.getState().setFarmDialog(dialog as 'scroll-mpd')
+    })
 
     // Gentle float tween to draw attention
     this.tweens.add({
@@ -809,6 +859,7 @@ export class FarmScene extends Phaser.Scene {
         this.time.delayedCall(600, () => {
           this.truckSprite.setFlipX(false)
           this.truckSprite.play('truck_roll')
+          this.sound.play('sfx_truck_leave', { volume: 0.6 })
           this.tweens.add({
             targets: this.truckSprite,
             x: width + 200,
@@ -1026,7 +1077,10 @@ export class FarmScene extends Phaser.Scene {
           .zone(pos.x, pos.y, this.iso.tileWidth, this.iso.tileHeight)
           .setDepth(-2)
           .setInteractive({ useHandCursor: true })
-        zone.on('pointerdown', () => useFarmStore.getState().placeCorn(col, row))
+        zone.on('pointerdown', () => {
+          useFarmStore.getState().placeCorn(col, row)
+          this.sound.play('sfx_corn_place', { volume: 0.5 })
+        })
         this.tileZones.push(zone)
       }
     }
@@ -1083,7 +1137,10 @@ export class FarmScene extends Phaser.Scene {
           .setScale((SZ.egg / 64) * this.sf)
           .setDepth(10)
           .setInteractive({ useHandCursor: true })
-        sprite.on('pointerdown', () => useFarmStore.getState().requestCollect(egg.id))
+        sprite.on('pointerdown', () => {
+          playSfx('btn_click')
+          useFarmStore.getState().requestCollect(egg.id)
+        })
         this.eggSprites.set(egg.id, sprite)
       }
 
@@ -1148,6 +1205,15 @@ export class FarmScene extends Phaser.Scene {
       desiredAnim = 'farmer_idle'
     }
     if (currentAnim !== desiredAnim) this.farmer.play(desiredAnim)
+
+    const shouldWalk = isMoving
+    if (this.farmerWalkSound) {
+      if (shouldWalk && !this.farmerWalkSound.isPlaying) {
+        this.farmerWalkSound.play()
+      } else if (!shouldWalk && this.farmerWalkSound.isPlaying) {
+        this.farmerWalkSound.stop()
+      }
+    }
   }
 
   // ── Resize ─────────────────────────────────────────────────────────────────

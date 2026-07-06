@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { playSfx } from '@/services/sfx'
 import { useUiStore } from '@/store/uiStore'
 import { useFarmStore } from '@/store/farmStore'
 import { FARM_LEVEL1, FARM_LEVEL2 } from '@/constants/farmBalance'
@@ -182,7 +183,10 @@ export function LevelIntroModal() {
         {/* Action */}
         <div style={{ padding: `${p(8)}px ${p(24)}px ${p(24)}px` }}>
           <button
-            onClick={() => setFarmDialog(null)}
+            onClick={() => {
+              playSfx('btn_click')
+              setFarmDialog(null)
+            }}
             style={{
               width: '100%',
               padding: `${p(12)}px`,

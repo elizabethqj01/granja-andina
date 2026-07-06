@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
+import { playSfx } from '@/services/sfx'
 import { useFarmStore } from '@/store/farmStore'
 import { useUiStore, type FarmDialog } from '@/store/uiStore'
 import { FARM_LEVEL1, FARM_LEVEL2, type FarmLevelConfig } from '@/constants/farmBalance'
@@ -79,7 +80,10 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
   const [reviewed, setReviewed] = useState<Set<string>>(new Set())
 
   useEffect(() => {
-    if (levelComplete) setReviewed(new Set())
+    if (levelComplete) {
+      setReviewed(new Set())
+      playSfx('level_complete', 0.8)
+    }
   }, [levelComplete])
 
   useEffect(() => {
@@ -190,7 +194,10 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
               return (
                 <button
                   key={key}
-                  onClick={() => setFarmDialog(key)}
+                  onClick={() => {
+                    playSfx('modal_open')
+                    setFarmDialog(key)
+                  }}
                   style={{
                     background: done ? 'rgba(80,160,60,0.35)' : 'rgba(0,0,0,0.35)',
                     border: `2px solid ${done ? '#6fcf5a' : 'rgba(255,224,102,0.35)'}`,
@@ -246,7 +253,10 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
         {/* Action buttons */}
         <div style={{ padding: `0 ${p(24)}px ${p(24)}px`, display: 'flex', gap: `${p(10)}px` }}>
           <button
-            onClick={onRetry}
+            onClick={() => {
+              playSfx('btn_click')
+              onRetry()
+            }}
             style={{
               flex: 1,
               padding: `${p(10)}px`,
@@ -262,7 +272,10 @@ export function LevelCompleteModal({ onRetry, onExit }: Props) {
             🔄 Reintentar
           </button>
           <button
-            onClick={onExit}
+            onClick={() => {
+              playSfx('btn_click')
+              onExit()
+            }}
             style={{
               flex: 1,
               padding: `${p(10)}px`,

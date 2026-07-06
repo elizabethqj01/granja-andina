@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { playSfx } from '@/services/sfx'
 import { useUiStore } from '@/store/uiStore'
 import { useViewportSf } from '@/hooks/useViewportSf'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
@@ -76,7 +77,10 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: `${p(10)}px` }}>
             <button
-              onClick={onResume}
+              onClick={() => {
+                playSfx('btn_click')
+                onResume()
+              }}
               style={{
                 padding: `${p(11)}px`,
                 borderRadius: '10px',
@@ -92,7 +96,10 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
               ▶ Continuar
             </button>
             <button
-              onClick={onRestart}
+              onClick={() => {
+                playSfx('btn_click')
+                onRestart()
+              }}
               style={{
                 padding: `${p(11)}px`,
                 borderRadius: '10px',
@@ -107,7 +114,10 @@ export function InGameMenu({ onResume, onRestart, onExit }: InGameMenuProps) {
               🔄 Reiniciar nivel
             </button>
             <button
-              onClick={onExit}
+              onClick={() => {
+                playSfx('btn_click')
+                onExit()
+              }}
               style={{
                 padding: `${p(11)}px`,
                 borderRadius: '10px',
