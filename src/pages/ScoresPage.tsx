@@ -7,14 +7,16 @@ import { ScoreSummaryTab } from '@/features/gamification/components/ScoreSummary
 import { GroupsTab } from '@/features/gamification/components/GroupsTab'
 import { RankingTab } from '@/features/gamification/components/RankingTab'
 import { RecordsTab } from '@/features/gamification/components/RecordsTab'
+import { ProfileTab } from '@/features/gamification/components/ProfileTab'
 
-type ScoresTab = 'resumen' | 'grupos' | 'ranking' | 'records'
+type ScoresTab = 'resumen' | 'grupos' | 'ranking' | 'records' | 'perfil'
 
 const TABS: { id: ScoresTab; label: string }[] = [
   { id: 'resumen', label: '🏆 Resumen' },
   { id: 'grupos', label: '👥 Grupos' },
   { id: 'ranking', label: '📈 Ranking' },
   { id: 'records', label: '🥇 Récords' },
+  { id: 'perfil', label: '👤 Perfil' },
 ]
 
 /**
@@ -77,6 +79,7 @@ export function ScoresPage() {
         {tab === 'grupos' && <GroupsTab />}
         {tab === 'ranking' && <RankingTab />}
         {tab === 'records' && <RecordsTab />}
+        {tab === 'perfil' && <ProfileTab />}
       </main>
     </div>
   )

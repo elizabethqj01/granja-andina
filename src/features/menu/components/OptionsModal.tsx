@@ -1,7 +1,9 @@
 import { useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
+import { useNavigate } from 'react-router-dom'
 import { useUiStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
+import { logoutUser } from '@/firebase/auth'
 import { audioManager } from '@/game/audio/AudioManager'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
@@ -28,6 +30,7 @@ interface OptionsModalProps {
 }
 
 export function OptionsModal({ onClose }: OptionsModalProps) {
+  const navigate = useNavigate()
   const { theme, toggleTheme, farmTutorialDone, resetFarmTutorial } = useUiStore()
   const displayName = useAuthStore((s) => s.user?.displayName ?? '')
   const [audioEnabled, setAudioEnabled] = useState(audioManager.isEnabled)
@@ -40,6 +43,11 @@ export function OptionsModal({ onClose }: OptionsModalProps) {
 
   function handleAudioToggle() {
     setAudioEnabled(audioManager.toggle())
+  }
+
+  async function handleLogout() {
+    await logoutUser()
+    navigate('/', { replace: true })
   }
 
   return (
@@ -159,6 +167,25 @@ export function OptionsModal({ onClose }: OptionsModalProps) {
               </button>
             </Row>
           </div>
+
+          <button
+            onClick={handleLogout}
+            style={{
+              width: '100%',
+              marginBottom: '10px',
+              padding: '11px',
+              borderRadius: '10px',
+              background: 'rgba(0,0,0,0.25)',
+              border: '1px solid rgba(255,224,102,0.3)',
+              fontFamily: "'Kalam', cursive",
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: 'pointer',
+              ...TEXT_MAIN,
+            }}
+          >
+            🚪 Cerrar sesión
+          </button>
 
           <button
             onClick={onClose}
