@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useFarmStore } from '@/store/farmStore'
+import { useFarmStore, type CostEvent } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
@@ -25,6 +25,7 @@ function useCostData() {
   const eggsCollectedTotal = useFarmStore((s) => s.eggsCollectedTotal)
   const revenue = useFarmStore((s) => s.revenue)
   const elapsedSec = useFarmStore((s) => s.elapsedSec)
+  const costEvents = useFarmStore((s) => s.costEvents)
 
   // MPD
   const invInicialMPD = 0
@@ -39,14 +40,8 @@ function useCostData() {
   const cif = cifOverhead + chickenCostAccrued
 
   // Derived explanatory values (for student breakdown notes)
-  const modWorkedSec =
-    FARM_LEVEL1.modCostPerSec > 0 ? Math.round(mod / FARM_LEVEL1.modCostPerSec) : 0
   const cornUnitsBought =
     FARM_LEVEL1.cornUnitCost > 0 ? Math.round(comprasMPD / FARM_LEVEL1.cornUnitCost) : 0
-  const chickensBought =
-    FARM_LEVEL1.chickenBuyPrice > 0
-      ? Math.round(chickenCostAccrued / FARM_LEVEL1.chickenBuyPrice)
-      : 0
 
   // Cost of period
   const costoPeriodo = costoMPD + mod + cif
@@ -74,12 +69,10 @@ function useCostData() {
     invFinalMPD,
     costoMPD,
     mod,
-    modWorkedSec,
     cifOverhead,
     chickenCostAccrued,
     cif,
     cornUnitsBought,
-    chickensBought,
     costoPeriodo,
     invInicialWIP,
     invFinalWIP,
@@ -95,6 +88,7 @@ function useCostData() {
     totalEggs,
     costPerEgg,
     elapsedSec,
+    costEvents,
   }
 }
 
@@ -207,6 +201,52 @@ function Note({ text }: { text: string }) {
   )
 }
 
+// ── Live event history (WIP page) ───────────────────────────────────────────────
+
+function SceneToken({ emoji, pulseId }: { emoji: string; pulseId?: string }) {
+  return (
+    <motion.div
+      key={pulseId ?? 'idle'}
+      initial={pulseId ? { scale: 1.35, boxShadow: '0 0 0 6px rgba(201,148,43,0.45)' } : false}
+      animate={{ scale: 1, boxShadow: '0 0 0 0px rgba(201,148,43,0)' }}
+      transition={{ duration: 0.6, ease: 'easeOut' }}
+      style={{
+        width: '28px',
+        height: '28px',
+        borderRadius: '50%',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        fontSize: '14px',
+        background: '#fdf6e3',
+        border: '2px solid #d8c9a3',
+        flexShrink: 0,
+      }}
+    >
+      {emoji}
+    </motion.div>
+  )
+}
+
+function EventHistory({ events }: { events: CostEvent[] }) {
+  if (events.length === 0) return null
+  return (
+    <>
+      {events.map((ev) => (
+        <motion.div
+          key={ev.id}
+          initial={{ opacity: 0, y: 6, backgroundColor: 'rgba(201,148,43,0.4)' }}
+          animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(201,148,43,0)' }}
+          transition={{ duration: 0.9, ease: 'easeOut' }}
+          style={{ borderRadius: '3px' }}
+        >
+          <Note text={`${ev.type === 'mod' ? '👨‍🌾' : '🐔'} ${ev.detail} → ${fmt(ev.amount)}`} />
+        </motion.div>
+      ))}
+    </>
+  )
+}
+
 // ── Section content ────────────────────────────────────────────────────────────
 
 type CostData = ReturnType<typeof useCostData>
@@ -230,17 +270,24 @@ function MPDContent({ d }: { d: CostData }) {
   )
 }
 
-function WIPContent({ d }: { d: CostData }) {
+function WIPContent({ d, revealedCount }: { d: CostData; revealedCount: number }) {
+  const revealed = d.costEvents.slice(0, revealedCount)
+  const lastMod = [...revealed].reverse().find((e) => e.type === 'mod')
+  const lastChicken = [...revealed].reverse().find((e) => e.type === 'chicken')
+
   return (
     <>
       <SectionTitle emoji="⚙️" title="En Proceso — Producción" />
       <Note text={`Período: ${Math.floor(d.elapsedSec / 60)}m ${d.elapsedSec % 60}s`} />
       <Spacer />
+      {(lastMod || lastChicken) && (
+        <div className="flex items-center gap-2" style={{ marginBottom: '8px' }}>
+          <SceneToken emoji="👨‍🌾" pulseId={lastMod?.id} />
+          <SceneToken emoji="🐔" pulseId={lastChicken?.id} />
+        </div>
+      )}
       <Row label="Costo de MPD" value={fmt(d.costoMPD)} dim />
       <Row op="(+)" label="MOD — Mano de obra directa" value={fmt(d.mod)} badge="conversión" />
-      <Note
-        text={`Tasa $${FARM_LEVEL1.modCostPerSec}/seg · ${d.modWorkedSec} seg trabajados por el granjero`}
-      />
       <Row
         op="(+)"
         label="CIF — Costos ind. de fabricación"
@@ -250,11 +297,7 @@ function WIPContent({ d }: { d: CostData }) {
       <Note
         text={`  · Gastos generales ($${FARM_LEVEL1.cifCostPerSec}/seg × ${d.elapsedSec} seg): ${fmt(d.cifOverhead)}`}
       />
-      {d.chickenCostAccrued > 0 && (
-        <Note
-          text={`  · Compra de gallinas: ${d.chickensBought} × $${FARM_LEVEL1.chickenBuyPrice} c/u = ${fmt(d.chickenCostAccrued)}`}
-        />
-      )}
+      <EventHistory events={revealed} />
       <Row op="(=)" label="Costo de producción del período" value={fmt(d.costoPeriodo)} total />
       <Note
         text={`Costo unitario por huevo = ${fmt(d.costoPeriodo)} ÷ ${d.totalEggs} huevo(s) producidos = ${fmtUnit(d.costPerEgg)} c/u`}
@@ -372,9 +415,12 @@ export function CostScrollModal() {
 
   const [idx, setIdx] = useState(0)
   const [dir, setDir] = useState(1)
+  const [revealedCount, setRevealedCount] = useState(0)
+  const revealTimers = useRef<number[]>([])
 
   const isOpen =
     farmDialog === 'scroll-mpd' || farmDialog === 'scroll-wip' || farmDialog === 'scroll-pt'
+  const pageKey = PAGES[idx].key
 
   // Sync initial page when opened from a specific scroll
   useEffect(() => {
@@ -383,14 +429,47 @@ export function CostScrollModal() {
     else if (farmDialog === 'scroll-pt') setIdx(2)
   }, [farmDialog])
 
+  // Replay newly-recorded cost events (MOD jobs, chicken purchases) one by one when the
+  // student lands on the WIP page, instead of dumping the whole history at once. A level
+  // restart shrinks costEvents, so we also snap revealedCount back down when that happens.
+  useEffect(() => {
+    const total = d.costEvents.length
+
+    if (total < revealedCount) {
+      setRevealedCount(total)
+      return
+    }
+
+    if (!isOpen || pageKey !== 'wip' || total === revealedCount) return
+
+    revealTimers.current.forEach(clearTimeout)
+    revealTimers.current = []
+
+    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (reduceMotion) {
+      setRevealedCount(total)
+      return
+    }
+
+    const stagger = 550
+    for (let i = 0; i < total - revealedCount; i++) {
+      const timer = window.setTimeout(() => setRevealedCount((c) => c + 1), (i + 1) * stagger)
+      revealTimers.current.push(timer)
+    }
+
+    return () => {
+      revealTimers.current.forEach(clearTimeout)
+      revealTimers.current = []
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, pageKey, d.costEvents.length])
+
   if (!isOpen) return null
 
   function go(next: number) {
     setDir(next > idx ? 1 : -1)
     setIdx(next)
   }
-
-  const pageKey = PAGES[idx].key
 
   return (
     <div
@@ -499,7 +578,7 @@ export function CostScrollModal() {
                 style={{ padding: '10px 20px 12px 58px', willChange: 'transform, opacity' }}
               >
                 {pageKey === 'mpd' && <MPDContent d={d} />}
-                {pageKey === 'wip' && <WIPContent d={d} />}
+                {pageKey === 'wip' && <WIPContent d={d} revealedCount={revealedCount} />}
                 {pageKey === 'pt' && <PTContent d={d} />}
               </motion.div>
             </AnimatePresence>
