@@ -1,3 +1,5 @@
+import type { Timestamp } from 'firebase/firestore'
+
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
 export type InventoryCategory = 'MP' | 'WIP' | 'PT'
@@ -209,9 +211,34 @@ export interface GameSession {
   userId: string
   level: GameLevel
   status: SessionStatus
-  startedAt: number
-  completedAt: number | null
+  startedAt: Timestamp
+  completedAt: Timestamp | null
   finalScore: number | null
   finalProfit: number | null
   decisionCount: number
+}
+
+// ─── User (Firestore users/{uid}) ─────────────────────────────────────────────
+
+export type UserRole = 'estudiante' | 'profesor'
+
+export interface UserBestRecords {
+  bestTimeByLevel: Record<string, number>
+  bestCostUnitarioByLevel: Record<string, number>
+  bestUtilidadByLevel: Record<string, number>
+}
+
+export interface AppUser {
+  uid: string
+  email: string
+  displayName: string
+  photoURL: string
+  role: UserRole
+  groupId: string | null
+  totalScore: number
+  starsTotal: number
+  levelsCompleted: number
+  bestRecords: UserBestRecords
+  createdAt: Timestamp
+  lastLoginAt: Timestamp
 }

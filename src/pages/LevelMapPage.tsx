@@ -1,5 +1,5 @@
 import { useNavigate } from 'react-router-dom'
-import { usePlayerStore } from '@/store/playerStore'
+import { useAuthStore } from '@/store/authStore'
 import { LevelNode } from '@/features/menu/components/LevelNode'
 import type { GameLevel, LevelStars } from '@/types'
 
@@ -13,7 +13,7 @@ const MAX_UNLOCKED_LEVEL: GameLevel = 2
  */
 export function LevelMapPage() {
   const navigate = useNavigate()
-  const { playerName } = usePlayerStore()
+  const displayName = useAuthStore((s) => s.user?.displayName ?? '')
   // Star persistence per level is future work; show none for now.
   const stars: Partial<Record<GameLevel, LevelStars>> = {}
 
@@ -32,7 +32,7 @@ export function LevelMapPage() {
           ← Menú
         </button>
         <h1 className="text-lg font-bold text-text-primary">Camino de niveles</h1>
-        <span className="text-sm text-text-muted">{playerName}</span>
+        <span className="text-sm text-text-muted">{displayName}</span>
       </header>
 
       {/* Level path */}

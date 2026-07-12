@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from 'react'
 import { motion } from 'framer-motion'
 import { useUiStore } from '@/store/uiStore'
-import { usePlayerStore } from '@/store/playerStore'
+import { useAuthStore } from '@/store/authStore'
 import { audioManager } from '@/game/audio/AudioManager'
 import hudPanelUrl from '@/assets/sprites/hud_panel..png'
 
@@ -29,7 +29,7 @@ interface OptionsModalProps {
 
 export function OptionsModal({ onClose }: OptionsModalProps) {
   const { theme, toggleTheme, farmTutorialDone, resetFarmTutorial } = useUiStore()
-  const { playerName } = usePlayerStore()
+  const displayName = useAuthStore((s) => s.user?.displayName ?? '')
   const [audioEnabled, setAudioEnabled] = useState(audioManager.isEnabled)
   const [tutorialReset, setTutorialReset] = useState(false)
 
@@ -98,7 +98,7 @@ export function OptionsModal({ onClose }: OptionsModalProps) {
           >
             <Row label="Jugador">
               <span style={{ ...TEXT_MAIN, fontSize: '13px', fontFamily: "'Kalam', cursive" }}>
-                {playerName || '—'}
+                {displayName || '—'}
               </span>
             </Row>
             <Row label="Audio">
