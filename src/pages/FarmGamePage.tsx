@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { LevelId } from '@/constants/farmBalance'
 import { FarmGameCanvas } from '@/game/FarmGameCanvas'
 import { LevelHUD } from '@/features/level/components/LevelHUD'
@@ -10,12 +10,20 @@ import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
 import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
 import { SellModal } from '@/features/level/components/SellModal'
 import { CostScrollModal } from '@/features/level/components/CostScrollModal'
+import { TransactionsPanel } from '@/features/level/components/TransactionsPanel'
+import { EvaluationRubricModal } from '@/features/education/components/EvaluationRubricModal'
 import { TutorialOverlay } from '@/features/education/TutorialOverlay'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
 import { useFarmStore, type FarmState } from '@/store/farmStore'
-import { createSession, completeSession, writeScore, updateBestRecords } from '@/firebase/firestore'
+import {
+  createSession,
+  completeSession,
+  writeScore,
+  updateBestRecords,
+  writeAssessment,
+} from '@/firebase/firestore'
 import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 
 /**
@@ -25,6 +33,8 @@ import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 export function FarmGamePage() {
   const navigate = useNavigate()
   const { level } = useParams<{ level: string }>()
+  const [searchParams] = useSearchParams()
+  const evalMode = searchParams.get('eval') === '1'
   const levelId = (Number(level) === 2 ? 2 : 1) as LevelId
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const farmDialog = useUiStore((s) => s.farmDialog)
@@ -36,6 +46,8 @@ export function FarmGamePage() {
   const setAppUser = useAuthStore((s) => s.setAppUser)
   const levelComplete = useFarmStore((s) => s.levelComplete)
   const levelFailed = useFarmStore((s) => s.levelFailed)
+  const finalScore = useFarmStore((s) => s.finalScore)
+  const scoreBreakdown = useFarmStore((s) => s.scoreBreakdown)
   const sessionIdRef = useRef<string | null>(null)
   const sessionOpenRef = useRef(false)
 
@@ -107,7 +119,20 @@ export function FarmGamePage() {
       finalProfit: farm.cash,
       decisionCount: farm.eggsSold,
     })
-    if (status === 'completed') void persistScoreIfNewBest(farm)
+    if (status !== 'completed') return
+    if (evalMode) {
+      if (uid && farm.finalScore !== null && farm.scoreBreakdown) {
+        void writeAssessment(
+          uid,
+          levelId,
+          farm.finalScore / 20,
+          farm.scoreBreakdown,
+          farm.elapsedSec
+        )
+      }
+      return
+    }
+    void persistScoreIfNewBest(farm)
   }
 
   useEffect(() => {
@@ -123,13 +148,14 @@ export function FarmGamePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per level mount, mirrors farmEngine.reset(levelId) above
   }, [setFarmDialog])
 
-  // Start tutorial the moment the player closes the intro modal
+  // Start tutorial the moment the player closes the intro modal — skipped in
+  // evaluation mode (EV-01: "sin ayudas"), the rest of the engine lifecycle is unchanged.
   useEffect(() => {
-    if (prevDialogRef.current === 'objectives' && farmDialog === null) {
+    if (prevDialogRef.current === 'objectives' && farmDialog === null && !evalMode) {
       startFarmTutorial()
     }
     prevDialogRef.current = farmDialog
-  }, [farmDialog, startFarmTutorial])
+  }, [farmDialog, startFarmTutorial, evalMode])
 
   // Persist the session's final stats the moment the level resolves.
   useEffect(() => {
@@ -175,17 +201,30 @@ export function FarmGamePage() {
         Almacén
       </div>
       <LevelHUD />
-      <TutorialOverlay />
-      <LevelIntroModal />
+      {!evalMode && <TutorialOverlay />}
+      <LevelIntroModal evalMode={evalMode} />
       <SellModal />
       <CostScrollModal />
       <CostFlowDialog />
+      <TransactionsPanel />
       <InGameMenu
         onResume={() => setFarmDialog(null)}
         onRestart={handleRestart}
         onExit={handleExit}
       />
-      <LevelCompleteModal onRetry={handleRestart} onExit={handleExit} />
+      {evalMode ? (
+        levelComplete &&
+        finalScore !== null &&
+        scoreBreakdown && (
+          <EvaluationRubricModal
+            nota={finalScore / 20}
+            breakdown={scoreBreakdown}
+            onContinue={() => navigate('/levels')}
+          />
+        )
+      ) : (
+        <LevelCompleteModal onRetry={handleRestart} onExit={handleExit} />
+      )}
       <GameOverModal onRetry={handleRestart} onExit={handleExit} />
     </div>
   )

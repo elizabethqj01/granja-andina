@@ -17,6 +17,7 @@ import type {
   LevelStars,
   RankingEntry,
   GlobalRecords,
+  ScoreBreakdown,
 } from '@/types'
 
 /**
@@ -212,6 +213,24 @@ function randomGroupCode(): string {
     code += GROUP_CODE_CHARS[Math.floor(Math.random() * GROUP_CODE_CHARS.length)]
   }
   return code
+}
+
+/** EV-01/EV-02 — persists one evaluation-mode attempt (assessments/{uid}_{levelId}_{timestamp}). */
+export async function writeAssessment(
+  uid: string,
+  levelId: GameLevel,
+  nota: number,
+  breakdown: ScoreBreakdown,
+  timeSeconds: number
+): Promise<void> {
+  await setDoc(doc(db, 'assessments', `${uid}_${levelId}_${Date.now()}`), {
+    userId: uid,
+    levelId,
+    nota,
+    breakdown,
+    timeSeconds,
+    completedAt: serverTimestamp(),
+  })
 }
 
 /** Creates a group with a unique 6-char code (spec §2.2, e.g. "CONT2026"), retrying on collision. */

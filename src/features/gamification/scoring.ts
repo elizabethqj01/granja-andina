@@ -1,4 +1,4 @@
-import type { LevelStars } from '@/types'
+import type { LevelStars, ScoreBreakdown } from '@/types'
 
 export interface LevelScoreInput {
   eggsCollectedTotal: number
@@ -15,12 +15,7 @@ export interface LevelScoreInput {
 export interface LevelScoreResult {
   score: number
   stars: LevelStars
-  breakdown: {
-    metas: number
-    correctitud: number
-    tiempo: number
-    costoUnitario: number
-  }
+  breakdown: ScoreBreakdown
 }
 
 function clamp(value: number, min: number, max: number): number {

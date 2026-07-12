@@ -35,6 +35,7 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     revenue: 0,
     eggsSold: 0,
     costEvents: [],
+    transactions: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -43,6 +44,7 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     levelFailed: false,
     stars: 0,
     finalScore: null,
+    scoreBreakdown: null,
     notification: null,
     ...overrides,
   }
@@ -380,5 +382,44 @@ describe('useFarmStore actions', () => {
     useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice - 1 })
     useFarmStore.getState().buyChicken()
     expect(useFarmStore.getState().chickens).toHaveLength(1)
+  })
+
+  it('should_logTransaction_when_rechargeCorn', () => {
+    useFarmStore.getState().rechargeCorn()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({
+      label: 'Compra maíz',
+      amount: -(FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge),
+    })
+  })
+
+  it('should_logTransaction_when_buyChicken', () => {
+    useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice * 2 })
+    useFarmStore.getState().buyChicken()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({
+      label: 'Compra gallina',
+      amount: -FARM_LEVEL1.chickenBuyPrice,
+    })
+  })
+
+  it('should_logTransaction_when_completeSale', () => {
+    useFarmStore.setState({ saleState: 'in-transit', pendingSaleIncome: 400 })
+    useFarmStore.getState().completeSale()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({ label: 'Venta de huevos', amount: 400 })
+  })
+
+  it('should_capTransactionLog_at50Entries', () => {
+    useFarmStore.setState({ cash: 1_000_000 })
+    // rechargeCorn() only buys when cornStock is 0 — reset it each time so every call logs.
+    for (let i = 0; i < 60; i++) {
+      useFarmStore.setState({ cornStock: 0 })
+      useFarmStore.getState().rechargeCorn()
+    }
+    expect(useFarmStore.getState().transactions).toHaveLength(50)
   })
 })

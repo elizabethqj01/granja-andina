@@ -285,3 +285,21 @@ export interface GlobalRecords {
   mayorUtilidad: { uid: string; displayName: string; value: number } | null
   updatedAt: Timestamp
 }
+
+// ─── Evaluation mode (EV-01 / EV-02) ───────────────────────────────────────────
+
+export interface ScoreBreakdown {
+  metas: number
+  correctitud: number
+  tiempo: number
+  costoUnitario: number
+}
+
+export interface Assessment {
+  userId: string
+  levelId: GameLevel
+  nota: number // 0.0–5.0, escala colombiana (score / 20)
+  breakdown: ScoreBreakdown
+  timeSeconds: number
+  completedAt: Timestamp
+}

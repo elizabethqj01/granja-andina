@@ -23,6 +23,7 @@ export type FarmDialog =
   | 'scroll-mpd'
   | 'scroll-wip'
   | 'scroll-pt'
+  | 'transactions'
   | null
 
 const THEME_KEY = 'costflow_theme'

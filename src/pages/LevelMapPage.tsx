@@ -1,6 +1,9 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { LevelNode } from '@/features/menu/components/LevelNode'
+import { LevelInfoModal } from '@/features/menu/components/LevelInfoModal'
+import type { LevelId } from '@/constants/farmBalance'
 import type { GameLevel, LevelStars } from '@/types'
 
 const LEVELS: GameLevel[] = [1, 2, 3, 4, 5, 6, 7, 8]
@@ -8,17 +11,28 @@ const LEVELS: GameLevel[] = [1, 2, 3, 4, 5, 6, 7, 8]
 const MAX_UNLOCKED_LEVEL: GameLevel = 2
 
 /**
- * Screen 3 — Level map. A path of nodes; only Level 1 is unlocked for now.
- * Selecting an unlocked node navigates to that level's game screen.
+ * Screen 3 — Level map. A path of nodes; only Level 1-2 are unlocked for now.
+ * Selecting an unlocked node opens the level info card (P-03B) before
+ * navigating to that level's game screen.
  */
 export function LevelMapPage() {
   const navigate = useNavigate()
   const displayName = useAuthStore((s) => s.user?.displayName ?? '')
-  // Star persistence per level is future work; show none for now.
-  const stars: Partial<Record<GameLevel, LevelStars>> = {}
+  const bestStarsByLevel = useAuthStore((s) => s.appUser?.bestRecords.bestStarsByLevel ?? {})
+  const [infoLevel, setInfoLevel] = useState<LevelId | null>(null)
+  const [evalMode, setEvalMode] = useState(false)
+
+  const stars: Partial<Record<GameLevel, LevelStars>> = Object.fromEntries(
+    Object.entries(bestStarsByLevel).map(([k, v]) => [Number(k), v as LevelStars])
+  )
 
   function handleSelect(level: GameLevel) {
-    navigate(`/play/${level}`)
+    if (level === 1 || level === 2) setInfoLevel(level)
+  }
+
+  function handleStart() {
+    if (infoLevel === null) return
+    navigate(evalMode ? `/play/${infoLevel}?eval=1` : `/play/${infoLevel}`)
   }
 
   return (
@@ -34,6 +48,19 @@ export function LevelMapPage() {
         <h1 className="text-lg font-bold text-text-primary">Camino de niveles</h1>
         <span className="text-sm text-text-muted">{displayName}</span>
       </header>
+
+      {/* Evaluation mode toggle (EV-01 entry point) */}
+      <div className="flex items-center justify-center gap-2 border-b border-border-default px-6 py-2">
+        <label className="flex cursor-pointer items-center gap-2 text-sm text-text-secondary">
+          <input
+            type="checkbox"
+            checked={evalMode}
+            onChange={(e) => setEvalMode(e.target.checked)}
+            className="h-4 w-4 accent-accent-primary"
+          />
+          📝 Modo Evaluación (cronómetro oficial, sin tutorial ni ayudas)
+        </label>
+      </div>
 
       {/* Level path */}
       <main className="flex flex-1 items-center overflow-x-auto px-8">
@@ -53,6 +80,10 @@ export function LevelMapPage() {
           ))}
         </div>
       </main>
+
+      {infoLevel !== null && (
+        <LevelInfoModal level={infoLevel} onBack={() => setInfoLevel(null)} onStart={handleStart} />
+      )}
     </div>
   )
 }

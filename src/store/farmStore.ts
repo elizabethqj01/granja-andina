@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import type { LevelStars } from '@/types'
+import type { LevelStars, ScoreBreakdown } from '@/types'
 import {
   FARM_LEVEL1,
   FARM_LEVEL2,
@@ -62,6 +62,16 @@ export interface CostEvent {
   amount: number
 }
 
+// P-05B — general live transaction log (corn/chicken purchases, egg sales).
+// Purely observational: pushed alongside the fields each action already sets,
+// never read by any gameplay logic, so it can't affect the tested mechanics.
+export interface Transaction {
+  id: string
+  atSec: number
+  label: string
+  amount: number
+}
+
 export interface FarmState {
   activeLevelId: LevelId
   cash: number
@@ -87,6 +97,9 @@ export interface FarmState {
   // drives the "live" reveal animation in the cost pergamino
   costEvents: CostEvent[]
 
+  // P-05B — general transaction log, capped at the last 50 entries
+  transactions: Transaction[]
+
   // Truck sale mechanic
   saleState: SaleState
   pendingSaleIncome: number
@@ -97,6 +110,7 @@ export interface FarmState {
   levelFailed: boolean
   stars: LevelStars
   finalScore: number | null
+  scoreBreakdown: ScoreBreakdown | null
 }
 
 export const FARM_GRID = { cols: 12, rows: 12 }
@@ -106,6 +120,7 @@ let eggCounter = 0
 let cornCounter = 0
 let chickenCounter = 0
 let costEventCounter = 0
+let transactionCounter = 0
 function nextEggId(): string {
   eggCounter += 1
   return `egg-${eggCounter}`
@@ -121,6 +136,21 @@ function nextChickenId(): string {
 function nextCostEventId(): string {
   costEventCounter += 1
   return `cost-event-${costEventCounter}`
+}
+function nextTransactionId(): string {
+  transactionCounter += 1
+  return `txn-${transactionCounter}`
+}
+
+// P-05B — appends a transaction, keeping only the most recent 50 so a long
+// session doesn't grow this array unbounded.
+function appendTransaction(
+  current: Transaction[],
+  atSec: number,
+  label: string,
+  amount: number
+): Transaction[] {
+  return [...current, { id: nextTransactionId(), atSec, label, amount }].slice(-50)
 }
 
 // Flushes the farmer's accrued working ticks (if any) into a single MOD CostEvent.
@@ -290,6 +320,7 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     revenue: 0,
     eggsSold: 0,
     costEvents: [],
+    transactions: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -298,6 +329,7 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     levelFailed: false,
     stars: 0,
     finalScore: null,
+    scoreBreakdown: null,
     notification: null,
   }
 }
@@ -519,6 +551,7 @@ export function advanceFarm(
     const result = computeLevelScoreResult(next, cfg)
     next.stars = result.stars
     next.finalScore = result.score
+    next.scoreBreakdown = result.breakdown
   }
 
   return next
@@ -558,6 +591,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       cornCounter = 0
       chickenCounter = 0
       costEventCounter = 0
+      transactionCounter = 0
       if (notificationTimer) {
         clearTimeout(notificationTimer)
         notificationTimer = null
@@ -581,6 +615,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         cash: s.cash - cost,
         cornStock: s.cornStock + activeCfg.cornPerRecharge,
         cornPurchasedValue: s.cornPurchasedValue + cost,
+        transactions: appendTransaction(s.transactions, s.elapsedSec, 'Compra maíz', -cost),
       })
     },
 
@@ -652,6 +687,12 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         pendingSaleIncome: 0,
         pendingSaleEggs: 0,
         saleState: 'idle',
+        transactions: appendTransaction(
+          s.transactions,
+          s.elapsedSec,
+          'Venta de huevos',
+          s.pendingSaleIncome
+        ),
       })
     },
 
@@ -698,6 +739,12 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             deadTimerSec: 0,
           },
         ],
+        transactions: appendTransaction(
+          s.transactions,
+          s.elapsedSec,
+          'Compra gallina',
+          -activeCfg.chickenBuyPrice
+        ),
       })
     },
 
