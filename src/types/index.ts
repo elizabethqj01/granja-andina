@@ -305,3 +305,54 @@ export interface Assessment {
   timeSeconds: number
   completedAt: Timestamp
 }
+
+// ─── Farm cost/transaction events (owned here, re-exported by farmStore.ts to
+// avoid a circular import — farmStore already imports LevelStars/ScoreBreakdown
+// from this file) ───────────────────────────────────────────────────────────
+
+export type CostEventType = 'mod' | 'chicken' | 'corn_placed' | 'egg_collected'
+
+export interface CostEvent {
+  id: string
+  atSec: number
+  type: CostEventType
+  detail: string
+  amount: number
+}
+
+// P-05B — general live transaction log (corn/chicken purchases, egg sales).
+// Purely observational: pushed alongside the fields each action already sets,
+// never read by any gameplay logic, so it can't affect the tested mechanics.
+export interface Transaction {
+  id: string
+  atSec: number
+  label: string
+  amount: number
+}
+
+// ─── Level review — "último intento" snapshot (Fase 4, repaso) ────────────────
+
+export type LevelOutcome = 'completed' | 'failed'
+
+export interface LevelSnapshot {
+  uid: string
+  levelId: GameLevel
+  outcome: LevelOutcome
+  elapsedSec: number
+  cornPurchasedValue: number
+  cornStock: number
+  modAccrued: number
+  cifAccrued: number
+  chickenCostAccrued: number
+  warehouseEggs: number
+  groundEggsCount: number
+  eggsCollectedTotal: number
+  revenue: number
+  eggsSold: number
+  cash: number
+  stars: LevelStars
+  finalScore: number | null
+  transactions: Transaction[]
+  costEvents: CostEvent[]
+  completedAt: Timestamp
+}

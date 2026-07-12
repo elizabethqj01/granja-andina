@@ -23,7 +23,9 @@ import {
   writeScore,
   updateBestRecords,
   writeAssessment,
+  writeLevelSnapshot,
 } from '@/firebase/firestore'
+import type { LevelOutcome } from '@/types'
 import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 
 /**
@@ -109,6 +111,32 @@ export function FarmGamePage() {
     })
   }
 
+  // "Último intento" — overwritten every time a level ends (win or lose),
+  // regardless of whether it beat the previous best. Powers "repasar flujo de
+  // costos" from the level map. Not called from a manual mid-game exit
+  // (handleExit) since that has no meaningful final numbers to review.
+  function persistLevelSnapshot(farm: FarmState, outcome: LevelOutcome) {
+    if (!uid) return
+    void writeLevelSnapshot(uid, levelId, outcome, {
+      elapsedSec: farm.elapsedSec,
+      cornPurchasedValue: farm.cornPurchasedValue,
+      cornStock: farm.cornStock,
+      modAccrued: farm.modAccrued,
+      cifAccrued: farm.cifAccrued,
+      chickenCostAccrued: farm.chickenCostAccrued,
+      warehouseEggs: farm.warehouseEggs,
+      groundEggsCount: farm.groundEggs.length,
+      eggsCollectedTotal: farm.eggsCollectedTotal,
+      revenue: farm.revenue,
+      eggsSold: farm.eggsSold,
+      cash: farm.cash,
+      stars: farm.stars,
+      finalScore: farm.finalScore,
+      transactions: farm.transactions,
+      costEvents: farm.costEvents,
+    })
+  }
+
   function closeSession(status: 'completed' | 'abandoned') {
     if (!sessionOpenRef.current || !sessionIdRef.current) return
     sessionOpenRef.current = false
@@ -161,8 +189,9 @@ export function FarmGamePage() {
   useEffect(() => {
     if (levelComplete || levelFailed) {
       closeSession(levelComplete ? 'completed' : 'abandoned')
+      persistLevelSnapshot(useFarmStore.getState(), levelComplete ? 'completed' : 'failed')
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeSession reads fresh state via useFarmStore.getState()
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeSession/persistLevelSnapshot read fresh state via useFarmStore.getState()
   }, [levelComplete, levelFailed])
 
   function handleRestart() {

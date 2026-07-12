@@ -45,10 +45,20 @@ interface LevelInfoModalProps {
   level: LevelId
   onBack: () => void
   onStart: () => void
+  onReview: () => void
+  reviewError?: string | null
+  reviewLoading?: boolean
 }
 
 /** P-03B — ficha informativa del nivel, mostrada desde el mapa antes de entrar al juego. */
-export function LevelInfoModal({ level, onBack, onStart }: LevelInfoModalProps) {
+export function LevelInfoModal({
+  level,
+  onBack,
+  onStart,
+  onReview,
+  reviewError,
+  reviewLoading,
+}: LevelInfoModalProps) {
   const cfg = level === 2 ? FARM_LEVEL2 : FARM_LEVEL1
   const info = LEVEL_INFO[level]
 
@@ -116,40 +126,72 @@ export function LevelInfoModal({ level, onBack, onStart }: LevelInfoModalProps) 
           </InfoRow>
         </div>
 
-        <div style={{ padding: '20px 24px 24px', display: 'flex', gap: '10px' }}>
+        <div
+          style={{
+            padding: '20px 24px 24px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '10px',
+          }}
+        >
           <button
-            onClick={onBack}
+            onClick={onReview}
+            disabled={reviewLoading}
             style={{
-              flex: 1,
-              padding: '11px',
+              padding: '10px',
               borderRadius: '10px',
-              background: 'rgba(0,0,0,0.4)',
-              border: '2px solid rgba(255,224,102,0.5)',
-              fontFamily: "'Fredoka One', cursive",
-              fontSize: '14px',
-              cursor: 'pointer',
+              background: 'rgba(0,0,0,0.25)',
+              border: '1px solid rgba(255,224,102,0.35)',
+              fontFamily: "'Kalam', cursive",
+              fontWeight: 700,
+              fontSize: '13px',
+              cursor: reviewLoading ? 'default' : 'pointer',
+              opacity: reviewLoading ? 0.6 : 1,
               ...TEXT_MAIN,
             }}
           >
-            ⬅️ Atrás
+            {reviewLoading ? 'Cargando…' : '📖 Repasar flujo de costos'}
           </button>
-          <button
-            onClick={onStart}
-            style={{
-              flex: 1,
-              padding: '11px',
-              borderRadius: '10px',
-              background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
-              border: '2px solid #f5c060',
-              fontFamily: "'Fredoka One', cursive",
-              fontSize: '14px',
-              cursor: 'pointer',
-              color: '#FFF3D0',
-              textShadow: '1px 1px 3px rgba(0,0,0,0.7)',
-            }}
-          >
-            ▶️ Comenzar
-          </button>
+          {reviewError && (
+            <p style={{ fontSize: '11px', color: '#ffb0b0', margin: 0, textAlign: 'center' }}>
+              {reviewError}
+            </p>
+          )}
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <button
+              onClick={onBack}
+              style={{
+                flex: 1,
+                padding: '11px',
+                borderRadius: '10px',
+                background: 'rgba(0,0,0,0.4)',
+                border: '2px solid rgba(255,224,102,0.5)',
+                fontFamily: "'Fredoka One', cursive",
+                fontSize: '14px',
+                cursor: 'pointer',
+                ...TEXT_MAIN,
+              }}
+            >
+              ⬅️ Atrás
+            </button>
+            <button
+              onClick={onStart}
+              style={{
+                flex: 1,
+                padding: '11px',
+                borderRadius: '10px',
+                background: 'linear-gradient(135deg, #c47b2b, #e8a040)',
+                border: '2px solid #f5c060',
+                fontFamily: "'Fredoka One', cursive",
+                fontSize: '14px',
+                cursor: 'pointer',
+                color: '#FFF3D0',
+                textShadow: '1px 1px 3px rgba(0,0,0,0.7)',
+              }}
+            >
+              ▶️ Comenzar
+            </button>
+          </div>
         </div>
       </motion.div>
     </div>

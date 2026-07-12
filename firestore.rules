@@ -43,6 +43,15 @@ service cloud.firestore {
       allow create, update: if request.auth != null && request.auth.uid == uid;
     }
 
+    // "Último intento" snapshot for the FC review module — overwritten every
+    // time a level ends (not just on a new best, unlike scores/).
+    match /levelSnapshots/{snapshotId} {
+      allow read: if request.auth != null && request.auth.uid == resource.data.uid;
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && snapshotId.matches(request.auth.uid + '_.*');
+    }
+
     match /sessions/{sessionId} {
       allow read: if request.auth != null && request.auth.uid == resource.data.userId;
       allow create: if request.auth != null

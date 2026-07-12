@@ -1,5 +1,11 @@
 import { create } from 'zustand'
-import type { LevelStars, ScoreBreakdown } from '@/types'
+import type { LevelStars, ScoreBreakdown, CostEventType, CostEvent, Transaction } from '@/types'
+
+// Re-exported so existing consumers (CostScrollModal, journalEntries, etc.)
+// can keep importing these from '@/store/farmStore' — the canonical
+// definitions live in '@/types' to avoid a circular import (this file
+// already imports LevelStars/ScoreBreakdown from there).
+export type { CostEventType, CostEvent, Transaction }
 import {
   FARM_LEVEL1,
   FARM_LEVEL2,
@@ -51,26 +57,6 @@ export interface Farmer {
   state: FarmerState
   targetEggId: string | null
   workedTicksThisSpell: number // ticks accrued since the last idle→working flush; feeds a CostEvent on completion
-}
-
-export type CostEventType = 'mod' | 'chicken'
-
-export interface CostEvent {
-  id: string
-  atSec: number
-  type: CostEventType
-  detail: string
-  amount: number
-}
-
-// P-05B — general live transaction log (corn/chicken purchases, egg sales).
-// Purely observational: pushed alongside the fields each action already sets,
-// never read by any gameplay logic, so it can't affect the tested mechanics.
-export interface Transaction {
-  id: string
-  atSec: number
-  label: string
-  amount: number
 }
 
 export interface FarmState {
@@ -538,6 +524,19 @@ export function advanceFarm(
         if (next.warehouseEggs < cfg.maxWarehouseEggs) {
           next.warehouseEggs += 1
           next.eggsCollectedTotal += 1
+          // Precise value is computed at review time from the period's final
+          // costPerEgg (same simplification the rest of the app already uses
+          // — a period average, not per-unit costing).
+          next.costEvents = [
+            ...next.costEvents,
+            {
+              id: nextCostEventId(),
+              atSec: next.elapsedSec,
+              type: 'egg_collected',
+              amount: 0,
+              detail: 'Huevo recolectado al almacén',
+            },
+          ]
         }
         flushModEvent(next, cfg)
         next.farmer = { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 }
@@ -631,6 +630,16 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         placedCorn: [
           ...s.placedCorn,
           { id: nextCornId(), col, row, remainingEnergy: activeCfg.chickenCornEnergyRestore },
+        ],
+        costEvents: [
+          ...s.costEvents,
+          {
+            id: nextCostEventId(),
+            atSec: s.elapsedSec,
+            type: 'corn_placed',
+            amount: activeCfg.cornUnitCost,
+            detail: 'Maíz entregado a la gallina',
+          },
         ],
       })
     },

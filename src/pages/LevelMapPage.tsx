@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router-dom'
 import { useAuthStore } from '@/store/authStore'
 import { LevelNode } from '@/features/menu/components/LevelNode'
 import { LevelInfoModal } from '@/features/menu/components/LevelInfoModal'
+import { LevelReviewModal } from '@/features/level/components/LevelReviewModal'
+import { getLevelSnapshot } from '@/firebase/firestore'
 import type { LevelId } from '@/constants/farmBalance'
-import type { GameLevel, LevelStars } from '@/types'
+import type { GameLevel, LevelStars, LevelSnapshot } from '@/types'
 
 const LEVELS: GameLevel[] = [1, 2, 3, 4, 5, 6, 7, 8]
 
@@ -18,9 +20,14 @@ const MAX_UNLOCKED_LEVEL: GameLevel = 2
 export function LevelMapPage() {
   const navigate = useNavigate()
   const displayName = useAuthStore((s) => s.user?.displayName ?? '')
+  const uid = useAuthStore((s) => s.user?.uid ?? null)
   const bestStarsByLevel = useAuthStore((s) => s.appUser?.bestRecords.bestStarsByLevel ?? {})
   const [infoLevel, setInfoLevel] = useState<LevelId | null>(null)
   const [evalMode, setEvalMode] = useState(false)
+  const [reviewSnapshot, setReviewSnapshot] = useState<LevelSnapshot | null>(null)
+  const [reviewLevel, setReviewLevel] = useState<LevelId | null>(null)
+  const [reviewError, setReviewError] = useState<string | null>(null)
+  const [reviewLoading, setReviewLoading] = useState(false)
 
   const stars: Partial<Record<GameLevel, LevelStars>> = Object.fromEntries(
     Object.entries(bestStarsByLevel).map(([k, v]) => [Number(k), v as LevelStars])
@@ -33,6 +40,26 @@ export function LevelMapPage() {
   function handleStart() {
     if (infoLevel === null) return
     navigate(evalMode ? `/play/${infoLevel}?eval=1` : `/play/${infoLevel}`)
+  }
+
+  async function handleReview() {
+    if (infoLevel === null || !uid) return
+    setReviewError(null)
+    setReviewLoading(true)
+    try {
+      const snapshot = await getLevelSnapshot(uid, infoLevel)
+      if (!snapshot) {
+        setReviewError('Todavía no tienes una partida guardada de este nivel.')
+        return
+      }
+      setReviewLevel(infoLevel)
+      setReviewSnapshot(snapshot)
+      setInfoLevel(null)
+    } catch {
+      setReviewError('No se pudo cargar tu último intento. Intenta de nuevo.')
+    } finally {
+      setReviewLoading(false)
+    }
   }
 
   return (
@@ -82,7 +109,25 @@ export function LevelMapPage() {
       </main>
 
       {infoLevel !== null && (
-        <LevelInfoModal level={infoLevel} onBack={() => setInfoLevel(null)} onStart={handleStart} />
+        <LevelInfoModal
+          level={infoLevel}
+          onBack={() => setInfoLevel(null)}
+          onStart={handleStart}
+          onReview={handleReview}
+          reviewError={reviewError}
+          reviewLoading={reviewLoading}
+        />
+      )}
+
+      {reviewSnapshot && reviewLevel !== null && (
+        <LevelReviewModal
+          snapshot={reviewSnapshot}
+          levelId={reviewLevel}
+          onClose={() => {
+            setReviewSnapshot(null)
+            setReviewLevel(null)
+          }}
+        />
       )}
     </div>
   )

@@ -23,6 +23,8 @@ import type {
   RankingEntry,
   GlobalRecords,
   ScoreBreakdown,
+  LevelSnapshot,
+  LevelOutcome,
 } from '@/types'
 import type { AggregatedMetrics, SessionMetrics } from '@/features/gamification/metricsAggregator'
 import { aggregate } from '@/features/gamification/metricsAggregator'
@@ -446,4 +448,38 @@ export async function buildSessionCsv(uid: string, sessionId: string): Promise<s
     return [e.tick, e.eventType, e.decisionTimeMs, JSON.stringify(e.payload)].join(',')
   })
   return [headers.join(','), ...rows].join('\n')
+}
+
+// ─── Level review — "último intento" snapshot ──────────────────────────────────
+
+export type LevelSnapshotInput = Omit<LevelSnapshot, 'uid' | 'levelId' | 'completedAt' | 'outcome'>
+
+/**
+ * Overwrites levelSnapshots/{uid}_{levelId} with this attempt's full detail
+ * (transactions, cost events, final tallies) — unlike scores/, which only
+ * updates on a *better* attempt, this always reflects the *last* attempt so
+ * "repasar flujo de costos" can replay it even if it wasn't the best run.
+ */
+export async function writeLevelSnapshot(
+  uid: string,
+  levelId: GameLevel,
+  outcome: LevelOutcome,
+  snapshot: LevelSnapshotInput
+): Promise<void> {
+  await setDoc(doc(db, 'levelSnapshots', `${uid}_${levelId}`), {
+    ...snapshot,
+    uid,
+    levelId,
+    outcome,
+    completedAt: serverTimestamp(),
+  })
+}
+
+/** Reads back the last saved attempt for a level, or null if none exists yet. */
+export async function getLevelSnapshot(
+  uid: string,
+  levelId: GameLevel
+): Promise<LevelSnapshot | null> {
+  const snap = await getDoc(doc(db, 'levelSnapshots', `${uid}_${levelId}`))
+  return snap.exists() ? (snap.data() as LevelSnapshot) : null
 }
