@@ -85,7 +85,7 @@ export function FarmGamePage() {
       utilidad: statement.utilidad,
     }
 
-    await writeScore(uid, levelId, appUser.groupId, record)
+    await writeScore(uid, appUser.displayName, levelId, appUser.groupId, record)
     await updateBestRecords(uid, levelId, appUser, record)
 
     const prevStars = appUser.bestRecords.bestStarsByLevel[key] ?? 0

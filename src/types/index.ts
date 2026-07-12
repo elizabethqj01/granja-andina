@@ -261,6 +261,7 @@ export interface Group {
 
 export interface ScoreEntry {
   uid: string
+  displayName: string
   levelId: GameLevel
   score: number
   stars: LevelStars
@@ -279,11 +280,12 @@ export interface RankingEntry {
   starsTotal: number
 }
 
+// Computed live from direct Firestore queries (subscribeToRecords) — no
+// Cloud Function involved, so there's no single "last aggregated at" moment.
 export interface GlobalRecords {
   menorCostoUnitario: { uid: string; displayName: string; value: number } | null
   tiempoMasRapido: { uid: string; displayName: string; value: number } | null
   mayorUtilidad: { uid: string; displayName: string; value: number } | null
-  updatedAt: Timestamp
 }
 
 // ─── Evaluation mode (EV-01 / EV-02) ───────────────────────────────────────────

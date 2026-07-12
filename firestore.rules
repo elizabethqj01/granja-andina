@@ -34,14 +34,13 @@ service cloud.firestore {
         && scoreId.matches(request.auth.uid + '_.*');
     }
 
-    match /rankings/{groupId} {
+    // Mirrors only the fields the spec allows showing about other users
+    // (never email or detailed calculations) — read directly by the ranking
+    // query, written client-side by the owner (no Cloud Function, requires
+    // the paid Blaze plan we're avoiding).
+    match /publicProfiles/{uid} {
       allow read: if request.auth != null;
-      allow write: if false; // Cloud Functions only
-    }
-
-    match /records/{recordId} {
-      allow read: if request.auth != null;
-      allow write: if false; // Cloud Functions only
+      allow create, update: if request.auth != null && request.auth.uid == uid;
     }
 
     match /sessions/{sessionId} {

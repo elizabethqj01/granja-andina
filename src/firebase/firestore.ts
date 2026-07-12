@@ -1,10 +1,15 @@
 import {
   doc,
   getDoc,
+  getDocs,
   setDoc,
   addDoc,
   updateDoc,
   collection,
+  query,
+  where,
+  orderBy,
+  limit,
   onSnapshot,
   serverTimestamp,
 } from 'firebase/firestore'
@@ -19,6 +24,28 @@ import type {
   GlobalRecords,
   ScoreBreakdown,
 } from '@/types'
+import type { AggregatedMetrics, SessionMetrics } from '@/features/gamification/metricsAggregator'
+import { aggregate } from '@/features/gamification/metricsAggregator'
+
+/**
+ * publicProfiles/{uid} mirrors only the fields the spec allows showing about
+ * other users (§2.2: never email or detailed calculations) — a Cloud
+ * Function would normally own this denormalization, but Functions requires
+ * the paid Blaze plan, so it's written client-side, same trust model as the
+ * rest of users/{uid} already uses.
+ */
+async function writePublicProfile(
+  uid: string,
+  data: Partial<{
+    displayName: string
+    photoURL: string
+    groupId: string | null
+    totalScore: number
+    starsTotal: number
+  }>
+): Promise<void> {
+  await setDoc(doc(db, 'publicProfiles', uid), data, { merge: true })
+}
 
 /**
  * Reads users/{uid}. Creates it with the spec's default values on first
@@ -40,20 +67,27 @@ export async function getOrCreateUser(
     // existed (e.g. Fase 1 users predate bestScoreByLevel/bestStarsByLevel) —
     // without this, code that indexes into them (appUser.bestRecords.x[level])
     // throws instead of just seeing "no record yet".
-    return {
-      user: {
-        ...data,
-        uid,
-        bestRecords: {
-          bestTimeByLevel: data.bestRecords?.bestTimeByLevel ?? {},
-          bestCostUnitarioByLevel: data.bestRecords?.bestCostUnitarioByLevel ?? {},
-          bestUtilidadByLevel: data.bestRecords?.bestUtilidadByLevel ?? {},
-          bestScoreByLevel: data.bestRecords?.bestScoreByLevel ?? {},
-          bestStarsByLevel: data.bestRecords?.bestStarsByLevel ?? {},
-        },
+    const backfilled: AppUser = {
+      ...data,
+      uid,
+      bestRecords: {
+        bestTimeByLevel: data.bestRecords?.bestTimeByLevel ?? {},
+        bestCostUnitarioByLevel: data.bestRecords?.bestCostUnitarioByLevel ?? {},
+        bestUtilidadByLevel: data.bestRecords?.bestUtilidadByLevel ?? {},
+        bestScoreByLevel: data.bestRecords?.bestScoreByLevel ?? {},
+        bestStarsByLevel: data.bestRecords?.bestStarsByLevel ?? {},
       },
-      isNewUser: false,
     }
+    // Also backfill publicProfiles/{uid} for accounts that predate that
+    // collection (everyone before this change) — self-heals on next login.
+    await writePublicProfile(uid, {
+      displayName: backfilled.displayName,
+      photoURL: backfilled.photoURL,
+      groupId: backfilled.groupId,
+      totalScore: backfilled.totalScore,
+      starsTotal: backfilled.starsTotal,
+    })
+    return { user: backfilled, isNewUser: false }
   }
 
   const newUser: AppUser = {
@@ -78,6 +112,13 @@ export async function getOrCreateUser(
     lastLoginAt: serverTimestamp() as unknown as AppUser['lastLoginAt'],
   }
   await setDoc(ref, newUser)
+  await writePublicProfile(uid, {
+    displayName: newUser.displayName,
+    photoURL: newUser.photoURL,
+    groupId: newUser.groupId,
+    totalScore: newUser.totalScore,
+    starsTotal: newUser.starsTotal,
+  })
   return { user: newUser, isNewUser: true }
 }
 
@@ -128,15 +169,19 @@ export interface LevelScoreRecord {
 /**
  * Overwrites scores/{uid}_{levelId} with this attempt's result. Call only
  * when it beats the player's previous best for this level (see FarmGamePage).
+ * displayName is denormalized here (not just on users/{uid}) so the records
+ * board (subscribeToRecords) can show a name without a second read per score.
  */
 export async function writeScore(
   uid: string,
+  displayName: string,
   levelId: GameLevel,
   groupId: string | null,
   result: LevelScoreRecord
 ): Promise<void> {
   await setDoc(doc(db, 'scores', `${uid}_${levelId}`), {
     uid,
+    displayName,
     levelId,
     groupId,
     ...result,
@@ -145,9 +190,11 @@ export async function writeScore(
 }
 
 /**
- * Updates users/{uid}'s aggregate totals and per-level bestRecords. Call only
- * when the attempt is a new best — totalScore/starsTotal are maintained
- * incrementally (subtract the old best for this level, add the new one).
+ * Updates users/{uid}'s aggregate totals and per-level bestRecords, and
+ * mirrors the new totals to publicProfiles/{uid} (read by the ranking
+ * query). Call only when the attempt is a new best — totalScore/starsTotal
+ * are maintained incrementally (subtract the old best for this level, add
+ * the new one).
  */
 export async function updateBestRecords(
   uid: string,
@@ -159,10 +206,12 @@ export async function updateBestRecords(
   const prevScore = previous.bestRecords.bestScoreByLevel[key] ?? 0
   const prevStars = previous.bestRecords.bestStarsByLevel[key] ?? 0
   const isFirstCompletion = !(key in previous.bestRecords.bestScoreByLevel)
+  const totalScore = previous.totalScore - prevScore + result.score
+  const starsTotal = previous.starsTotal - prevStars + result.stars
 
   await updateDoc(doc(db, 'users', uid), {
-    totalScore: previous.totalScore - prevScore + result.score,
-    starsTotal: previous.starsTotal - prevStars + result.stars,
+    totalScore,
+    starsTotal,
     levelsCompleted: previous.levelsCompleted + (isFirstCompletion ? 1 : 0),
     [`bestRecords.bestScoreByLevel.${key}`]: result.score,
     [`bestRecords.bestStarsByLevel.${key}`]: result.stars,
@@ -170,30 +219,100 @@ export async function updateBestRecords(
     [`bestRecords.bestCostUnitarioByLevel.${key}`]: result.costoUnitario,
     [`bestRecords.bestUtilidadByLevel.${key}`]: result.utilidad,
   })
+  await writePublicProfile(uid, { totalScore, starsTotal })
 }
 
-/** Real-time subscription to a group's ranking, updated by the updateRanking Cloud Function. */
+/**
+ * Real-time ranking for a group — a direct Firestore query (no Cloud
+ * Function; Functions requires the paid Blaze plan). Reads publicProfiles/,
+ * never users/ directly, so email/bestRecords of other students are never
+ * exposed even at the rules level (especificaciones.md §2.2).
+ */
 export function subscribeToRanking(
   groupId: string,
   callback: (entries: RankingEntry[]) => void
 ): () => void {
-  return onSnapshot(doc(db, 'rankings', groupId), (snap) => {
-    callback(snap.exists() ? ((snap.data().entries as RankingEntry[]) ?? []) : [])
+  const q = query(
+    collection(db, 'publicProfiles'),
+    where('groupId', '==', groupId),
+    orderBy('totalScore', 'desc'),
+    limit(100)
+  )
+  return onSnapshot(q, (snap) => {
+    callback(
+      snap.docs.map((d) => {
+        const data = d.data()
+        return {
+          uid: d.id,
+          displayName: (data.displayName as string) ?? '',
+          photoURL: (data.photoURL as string) ?? '',
+          totalScore: (data.totalScore as number) ?? 0,
+          starsTotal: (data.starsTotal as number) ?? 0,
+        }
+      })
+    )
+  })
+}
+
+type RecordCategory = 'costoUnitario' | 'timeSeconds' | 'utilidad'
+
+function subscribeToTopScore(
+  category: RecordCategory,
+  direction: 'asc' | 'desc',
+  groupId: string | undefined,
+  callback: (holder: { uid: string; displayName: string; value: number } | null) => void
+): () => void {
+  const constraints = groupId ? [where('groupId', '==', groupId)] : []
+  const q = query(collection(db, 'scores'), ...constraints, orderBy(category, direction), limit(1))
+  return onSnapshot(q, (snap) => {
+    if (snap.empty) {
+      callback(null)
+      return
+    }
+    const top = snap.docs[0].data()
+    callback({
+      uid: top.uid as string,
+      displayName: (top.displayName as string) ?? '',
+      value: top[category] as number,
+    })
   })
 }
 
 /**
- * Real-time subscription to a records board, updated by the updateRanking
- * Cloud Function. Pass a groupId for that group's records, or omit it for
- * the global board (records/global).
+ * Real-time records board (menor costo unitario / tiempo más rápido / mayor
+ * utilidad) — 3 direct queries on scores/, no Cloud Function. Pass a groupId
+ * for that group's board, or omit it for the global board.
  */
 export function subscribeToRecords(
   callback: (records: GlobalRecords | null) => void,
   groupId?: string
 ): () => void {
-  return onSnapshot(doc(db, 'records', groupId ?? 'global'), (snap) => {
-    callback(snap.exists() ? (snap.data() as GlobalRecords) : null)
-  })
+  const state: Partial<GlobalRecords> = {}
+
+  function emit() {
+    callback({
+      menorCostoUnitario: state.menorCostoUnitario ?? null,
+      tiempoMasRapido: state.tiempoMasRapido ?? null,
+      mayorUtilidad: state.mayorUtilidad ?? null,
+    })
+  }
+
+  const unsubs = [
+    subscribeToTopScore('costoUnitario', 'asc', groupId, (h) => {
+      state.menorCostoUnitario = h
+      emit()
+    }),
+    subscribeToTopScore('timeSeconds', 'asc', groupId, (h) => {
+      state.tiempoMasRapido = h
+      emit()
+    }),
+    subscribeToTopScore('utilidad', 'desc', groupId, (h) => {
+      state.mayorUtilidad = h
+      emit()
+    }),
+  ]
+
+  return () => unsubs.forEach((u) => u())
 }
 
 /**
@@ -210,6 +329,7 @@ export async function joinGroup(uid: string, code: string): Promise<void> {
     groupId: code,
     groupChangedAt: serverTimestamp(),
   })
+  await writePublicProfile(uid, { groupId: code })
 }
 
 /**
@@ -221,6 +341,7 @@ export async function leaveGroup(uid: string): Promise<void> {
     groupId: null,
     groupChangedAt: serverTimestamp(),
   })
+  await writePublicProfile(uid, { groupId: null })
 }
 
 const GROUP_CODE_CHARS = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789' // no ambiguous 0/O, 1/I
@@ -269,4 +390,60 @@ export async function createGroup(profesorUid: string, nombre: string): Promise<
     }
   }
   throw new Error('No se pudo generar un código de grupo único, intenta de nuevo')
+}
+
+// ─── Analytics / Metrics (client-side — no Cloud Function, requires Blaze) ─────
+
+/**
+ * Client-side equivalent of the old calculateMetrics Cloud Function: reads
+ * this user's completed sessions and aggregates them with the same pure
+ * `aggregate()` used there. Not wired to any screen yet (neither was the
+ * function it replaces) — available for a future progress dashboard (P-18).
+ */
+export async function fetchSessionMetrics(
+  uid: string
+): Promise<{ sessions: SessionMetrics[]; aggregated: AggregatedMetrics }> {
+  const snap = await getDocs(
+    query(
+      collection(db, 'sessions'),
+      where('userId', '==', uid),
+      where('status', '==', 'completed')
+    )
+  )
+  const sessions: SessionMetrics[] = snap.docs.map((d) => {
+    const data = d.data()
+    return {
+      sessionId: d.id,
+      level: data.level as number,
+      finalProfit: (data.finalProfit as number) ?? null,
+      finalScore: (data.finalScore as number) ?? null,
+      decisionCount: data.decisionCount as number,
+      durationTicks: null,
+    }
+  })
+  return { sessions, aggregated: aggregate(sessions) }
+}
+
+/**
+ * Client-side equivalent of the old exportResults Cloud Function: reads a
+ * session's analytics events and builds the same CSV, without uploading
+ * anywhere — the caller triggers a browser download via a Blob. Not wired to
+ * any screen yet (neither was the function it replaces).
+ */
+export async function buildSessionCsv(uid: string, sessionId: string): Promise<string> {
+  const sessionSnap = await getDoc(doc(db, 'sessions', sessionId))
+  if (!sessionSnap.exists() || sessionSnap.data().userId !== uid) {
+    throw new Error('Sesión no encontrada o no te pertenece')
+  }
+
+  const eventsSnap = await getDocs(
+    query(collection(db, 'analytics'), where('sessionId', '==', sessionId), orderBy('tick', 'asc'))
+  )
+
+  const headers = ['tick', 'eventType', 'decisionTimeMs', 'payload']
+  const rows = eventsSnap.docs.map((d) => {
+    const e = d.data()
+    return [e.tick, e.eventType, e.decisionTimeMs, JSON.stringify(e.payload)].join(',')
+  })
+  return [headers.join(','), ...rows].join('\n')
 }
