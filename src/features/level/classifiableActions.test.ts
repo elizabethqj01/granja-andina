@@ -39,7 +39,7 @@ function costEvent(overrides: Partial<CostEvent> = {}): CostEvent {
 describe('buildClassifiableActions', () => {
   it('should_classifyCornPurchase_asMPD', () => {
     const [action] = buildClassifiableActions(snapshot({ transactions: [txn()] }), 10)
-    expect(action).toMatchObject({ monto: 20, correctCategory: 'MPD' })
+    expect(action).toMatchObject({ monto: 20, count: 1, correctCategory: 'MPD' })
   })
 
   it('should_classifyEggSale_asPT_A_VENTAS', () => {
@@ -99,5 +99,53 @@ describe('buildClassifiableActions', () => {
       10
     )
     expect(actions.map((a) => a.atSec)).toEqual([5, 30])
+  })
+
+  it('should_groupRepeatedActionsOfTheSameKind_intoOneEntry', () => {
+    const actions = buildClassifiableActions(
+      snapshot({
+        costEvents: [
+          costEvent({ id: 'e1', type: 'egg_collected', atSec: 10 }),
+          costEvent({ id: 'e2', type: 'egg_collected', atSec: 20 }),
+          costEvent({ id: 'e3', type: 'egg_collected', atSec: 30 }),
+          costEvent({ id: 'e4', type: 'egg_collected', atSec: 40 }),
+        ],
+      }),
+      10
+    )
+    expect(actions).toHaveLength(1)
+    expect(actions[0]).toMatchObject({
+      count: 4,
+      monto: 40, // 4 eggs × $10 each, summed
+      correctCategory: 'PRODUCCION_A_PT',
+      atSec: 10, // earliest occurrence
+    })
+    expect(actions[0].label).toContain('4')
+  })
+
+  it('should_sumMontos_whenGroupingRepeatedTransactions', () => {
+    const actions = buildClassifiableActions(
+      snapshot({
+        transactions: [
+          txn({ id: 't1', atSec: 3, amount: -20 }),
+          txn({ id: 't2', atSec: 40, amount: -20 }),
+          txn({ id: 't3', atSec: 80, amount: -20 }),
+        ],
+      }),
+      10
+    )
+    expect(actions).toHaveLength(1)
+    expect(actions[0]).toMatchObject({ count: 3, monto: 60 })
+  })
+
+  it('should_notMixDifferentKinds_intoTheSameGroup', () => {
+    const actions = buildClassifiableActions(
+      snapshot({
+        transactions: [txn({ id: 't1', atSec: 3 })],
+        costEvents: [costEvent({ id: 'c1', type: 'mod', atSec: 5 })],
+      }),
+      10
+    )
+    expect(actions).toHaveLength(2)
   })
 })
