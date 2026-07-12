@@ -4,13 +4,34 @@ import {
   buildRankingEntries,
   updateGlobalRecords,
   type GlobalRecordsState,
+  type RecordCandidate,
 } from './rankingAggregator'
+
+const EMPTY_RECORDS: GlobalRecordsState = {
+  menorCostoUnitario: null,
+  tiempoMasRapido: null,
+  mayorUtilidad: null,
+}
+
+async function updateRecordsDoc(
+  db: admin.firestore.Firestore,
+  path: string,
+  candidate: RecordCandidate
+): Promise<void> {
+  const ref = db.doc(path)
+  const snap = await ref.get()
+  const current = (snap.data() as GlobalRecordsState | undefined) ?? EMPTY_RECORDS
+  const next = updateGlobalRecords(current, candidate)
+  await ref.set({ ...next, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+}
 
 /**
  * Fires on every scores/{scoreId} write and recomputes the group's ranking
- * plus the global records board. Runs server-side (Admin SDK) so the ranking
- * can't be tampered with client-side — firestore.rules blocks direct writes
- * to rankings/ and records/ entirely.
+ * plus the records board — global (records/global) and, when the score
+ * belongs to a group, that group's own board (records/{groupId}, spec §SC-04
+ * "mejores marcas globales y por grupo"). Runs server-side (Admin SDK) so
+ * none of this can be tampered with client-side — firestore.rules blocks
+ * direct writes to rankings/ and records/ entirely.
  */
 export const updateRanking = onDocumentWritten('scores/{scoreId}', async (event) => {
   const after = event.data?.after?.data()
@@ -36,24 +57,17 @@ export const updateRanking = onDocumentWritten('scores/{scoreId}', async (event)
     })
   }
 
-  const recordsRef = db.doc('records/global')
-  const recordsSnap = await recordsRef.get()
-  const current = (recordsSnap.data() as GlobalRecordsState | undefined) ?? {
-    menorCostoUnitario: null,
-    tiempoMasRapido: null,
-    mayorUtilidad: null,
-  }
-
   const userSnap = await db.doc(`users/${after.uid}`).get()
   const displayName = (userSnap.data()?.displayName as string) ?? ''
 
-  const next = updateGlobalRecords(current, {
+  const candidate: RecordCandidate = {
     uid: after.uid as string,
     displayName,
     costoUnitario: (after.costoUnitario as number) ?? 0,
     timeSeconds: (after.timeSeconds as number) ?? 0,
     utilidad: (after.utilidad as number) ?? 0,
-  })
+  }
 
-  await recordsRef.set({ ...next, updatedAt: admin.firestore.FieldValue.serverTimestamp() })
+  await updateRecordsDoc(db, 'records/global', candidate)
+  if (groupId) await updateRecordsDoc(db, `records/${groupId}`, candidate)
 })

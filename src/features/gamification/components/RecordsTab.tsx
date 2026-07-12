@@ -1,4 +1,6 @@
+import { useAuthStore } from '@/store/authStore'
 import { useScoreStore } from '@/store/scoreStore'
+import type { GlobalRecords } from '@/types'
 
 function RecordCard({
   emoji,
@@ -28,11 +30,9 @@ function RecordCard({
   )
 }
 
-export function RecordsTab() {
-  const records = useScoreStore((s) => s.records)
-
+function RecordsBoard({ records }: { records: GlobalRecords | null }) {
   return (
-    <div className="mx-auto grid max-w-2xl grid-cols-1 gap-4 sm:grid-cols-3">
+    <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
       <RecordCard
         emoji="💵"
         label="Menor costo unitario"
@@ -51,6 +51,30 @@ export function RecordsTab() {
         holder={records?.mayorUtilidad ?? null}
         formatValue={(v) => `$${v.toLocaleString('es-CO')}`}
       />
+    </div>
+  )
+}
+
+/** SC-04 — mejores marcas globales y por grupo (especificaciones.md). */
+export function RecordsTab() {
+  const appUser = useAuthStore((s) => s.appUser)
+  const records = useScoreStore((s) => s.records)
+  const groupRecords = useScoreStore((s) => s.groupRecords)
+
+  return (
+    <div className="mx-auto flex max-w-2xl flex-col gap-8">
+      {appUser?.groupId && (
+        <section>
+          <h2 className="mb-3 text-sm font-semibold text-text-secondary">
+            Récords de mi grupo ({appUser.groupId})
+          </h2>
+          <RecordsBoard records={groupRecords} />
+        </section>
+      )}
+      <section>
+        <h2 className="mb-3 text-sm font-semibold text-text-secondary">Récords globales</h2>
+        <RecordsBoard records={records} />
+      </section>
     </div>
   )
 }

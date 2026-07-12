@@ -29,6 +29,7 @@ export function ScoresPage() {
   const appUser = useAuthStore((s) => s.appUser)
   const setRanking = useScoreStore((s) => s.setRanking)
   const setRecords = useScoreStore((s) => s.setRecords)
+  const setGroupRecords = useScoreStore((s) => s.setGroupRecords)
   const [tab, setTab] = useState<ScoresTab>('resumen')
 
   useEffect(() => {
@@ -39,11 +40,16 @@ export function ScoresPage() {
   useEffect(() => {
     if (!appUser?.groupId) {
       setRanking([])
+      setGroupRecords(null)
       return
     }
     const unsubscribeRanking = subscribeToRanking(appUser.groupId, setRanking)
-    return unsubscribeRanking
-  }, [appUser?.groupId, setRanking])
+    const unsubscribeGroupRecords = subscribeToRecords(setGroupRecords, appUser.groupId)
+    return () => {
+      unsubscribeRanking()
+      unsubscribeGroupRecords()
+    }
+  }, [appUser?.groupId, setRanking, setGroupRecords])
 
   return (
     <div className="flex h-screen w-screen flex-col bg-surface-primary">

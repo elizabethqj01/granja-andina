@@ -163,9 +163,16 @@ export function subscribeToRanking(
   })
 }
 
-/** Real-time subscription to the global records board, updated by the updateRanking Cloud Function. */
-export function subscribeToRecords(callback: (records: GlobalRecords | null) => void): () => void {
-  return onSnapshot(doc(db, 'records', 'global'), (snap) => {
+/**
+ * Real-time subscription to a records board, updated by the updateRanking
+ * Cloud Function. Pass a groupId for that group's records, or omit it for
+ * the global board (records/global).
+ */
+export function subscribeToRecords(
+  callback: (records: GlobalRecords | null) => void,
+  groupId?: string
+): () => void {
+  return onSnapshot(doc(db, 'records', groupId ?? 'global'), (snap) => {
     callback(snap.exists() ? (snap.data() as GlobalRecords) : null)
   })
 }
@@ -182,6 +189,17 @@ export async function joinGroup(uid: string, code: string): Promise<void> {
   }
   await updateDoc(doc(db, 'users', uid), {
     groupId: code,
+    groupChangedAt: serverTimestamp(),
+  })
+}
+
+/**
+ * Clears groupId (SC-02 "Salir del grupo"). Subject to the same 7-day
+ * cooldown as joining — enforced by firestore.rules.
+ */
+export async function leaveGroup(uid: string): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), {
+    groupId: null,
     groupChangedAt: serverTimestamp(),
   })
 }
