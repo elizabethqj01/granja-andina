@@ -248,6 +248,8 @@ function WIPContent({ d, revealedCount }: { d: CostData; revealedCount: number }
       <Note
         text={`  · Gastos generales ($${FARM_LEVEL1.cifCostPerSec}/seg × ${d.elapsedSec} seg): ${fmt(d.cifOverhead)}`}
       />
+      <Note text={`Costos primos (MPD + MOD) = ${fmt(d.costoMPD + d.mod)}`} />
+      <Note text={`Costos de conversión (MOD + CIF) = ${fmt(d.mod + d.cif)}`} />
       <EventHistory events={revealed} />
       <Row op="(=)" label="Costo de producción del período" value={fmt(d.costoPeriodo)} total />
       <Note
@@ -275,6 +277,12 @@ function PTContent({ d }: { d: CostData }) {
       <Spacer />
       <Row label="Costo de prod. terminada" value={fmt(d.costoTerminada)} dim />
       <Row label="(+) Inv. inicial prod. terminada" value={fmt(d.invInicialPT)} dim />
+      <Row
+        op="(=)"
+        label="Disponible para la venta"
+        value={fmt(d.costoTerminada + d.invInicialPT)}
+        sub
+      />
       <Row op="(−)" label="Inv. final prod. terminada" value={fmt(d.invFinalPT)} />
       <Note text={`${d.warehouseEggs} huevo(s) en almacén × ${fmtUnit(d.costPerEgg)} c/u`} />
       <Row op="(=)" label="Costo de ventas" value={fmt(d.costoVentas)} total />
