@@ -57,6 +57,7 @@ export type CostEventType = 'mod' | 'chicken'
 
 export interface CostEvent {
   id: string
+  atSec: number
   type: CostEventType
   detail: string
   amount: number
@@ -162,6 +163,7 @@ function flushModEvent(next: FarmState, cfg: FarmLevelConfig): void {
     ...next.costEvents,
     {
       id: nextCostEventId(),
+      atSec: next.elapsedSec,
       type: 'mod',
       amount: ticks * cfg.modCostPerSec,
       detail: `${ticks} seg trabajados por el granjero`,
@@ -718,6 +720,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
           ...s.costEvents,
           {
             id: nextCostEventId(),
+            atSec: s.elapsedSec,
             type: 'chicken',
             amount: activeCfg.chickenBuyPrice,
             detail: `1 × $${activeCfg.chickenBuyPrice} c/u`,

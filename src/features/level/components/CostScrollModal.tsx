@@ -4,6 +4,7 @@ import { useFarmStore, type CostEvent } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
+import { buildJournalEntries } from '@/features/level/journalEntries'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ function useCostData() {
   const revenue = useFarmStore((s) => s.revenue)
   const elapsedSec = useFarmStore((s) => s.elapsedSec)
   const costEvents = useFarmStore((s) => s.costEvents)
+  const transactions = useFarmStore((s) => s.transactions)
 
   const statement = computeFarmCostStatement({
     cornPurchasedValue,
@@ -40,7 +42,14 @@ function useCostData() {
     revenue,
   })
 
-  return { ...statement, elapsedSec, costEvents }
+  const journalEntries = buildJournalEntries(
+    transactions,
+    costEvents,
+    statement.cifOverhead,
+    elapsedSec
+  )
+
+  return { ...statement, elapsedSec, costEvents, journalEntries }
 }
 
 // ── Row components ─────────────────────────────────────────────────────────────
@@ -307,6 +316,68 @@ function PTContent({ d }: { d: CostData }) {
           {fmt(Math.abs(d.utilidad))}
         </span>
       </div>
+      <Spacer />
+      <Row op="(−)" label="Gastos de administración" value={fmt(0)} dim />
+      <Row op="(−)" label="Gastos de ventas" value={fmt(0)} dim />
+      <Row op="(=)" label="Utilidad operativa" value={fmt(d.utilidad)} sub />
+      <Row op="(−)" label="Impuestos" value={fmt(0)} dim />
+      <div
+        className="mt-1 flex items-baseline justify-between gap-2"
+        style={{
+          fontFamily: "'Fredoka One', cursive",
+          fontSize: '16px',
+          color: utilColor,
+          borderBottom: '3px double currentColor',
+          paddingBottom: '2px',
+        }}
+      >
+        <span>(=) Utilidad neta</span>
+        <span>
+          {d.utilidad < 0 ? '−' : ''}
+          {fmt(Math.abs(d.utilidad))}
+        </span>
+      </div>
+      <Note text="Gastos de administración/ventas e impuestos aún no existen en la mecánica del juego — se muestran en $0." />
+    </>
+  )
+}
+
+function formatEntryTime(atSec: number): string {
+  const m = Math.floor(atSec / 60)
+  const s = atSec % 60
+  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+}
+
+function JournalContent({ d }: { d: CostData }) {
+  return (
+    <>
+      <SectionTitle emoji="📖" title="Libro Diario" />
+      <Note text={`Período: ${Math.floor(d.elapsedSec / 60)}m ${d.elapsedSec % 60}s`} />
+      <Spacer />
+      {d.journalEntries.length === 0 ? (
+        <Note text="Todavía no hay movimientos registrados." />
+      ) : (
+        d.journalEntries.map((entry) => (
+          <div key={entry.id} style={{ marginBottom: '10px' }}>
+            <div className="flex items-baseline justify-between" style={{ marginBottom: '2px' }}>
+              <span style={{ fontFamily: "'Kalam', cursive", fontSize: '10px', color: '#a0886a' }}>
+                {formatEntryTime(entry.atSec)}
+              </span>
+              <span
+                style={{
+                  fontFamily: "'Fredoka One', cursive",
+                  fontSize: '12px',
+                  color: '#5a1a00',
+                }}
+              >
+                {entry.concepto}
+              </span>
+            </div>
+            <Row label={`  Debe · ${entry.debeCuenta}`} value={fmt(entry.debeMonto)} />
+            <Row label={`  Haber · ${entry.haberCuenta}`} value={fmt(entry.haberMonto)} dim />
+          </div>
+        ))
+      )}
     </>
   )
 }
@@ -317,6 +388,7 @@ const PAGES = [
   { key: 'mpd', label: '🌽 MPD' },
   { key: 'wip', label: '⚙️ Producción' },
   { key: 'pt', label: '🥚 PT + Resultado' },
+  { key: 'diario', label: '📖 Libro Diario' },
 ] as const
 
 const PAGE_VARIANTS = {
@@ -539,6 +611,7 @@ export function CostScrollModal() {
                 {pageKey === 'mpd' && <MPDContent d={d} />}
                 {pageKey === 'wip' && <WIPContent d={d} revealedCount={revealedCount} />}
                 {pageKey === 'pt' && <PTContent d={d} />}
+                {pageKey === 'diario' && <JournalContent d={d} />}
               </motion.div>
             </AnimatePresence>
           </div>
