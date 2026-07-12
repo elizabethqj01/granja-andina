@@ -35,7 +35,25 @@ export async function getOrCreateUser(
 
   if (snap.exists()) {
     await updateDoc(ref, { lastLoginAt: serverTimestamp() })
-    return { user: { ...(snap.data() as AppUser), uid }, isNewUser: false }
+    const data = snap.data() as AppUser
+    // Backfill bestRecords sub-maps for accounts created before a given field
+    // existed (e.g. Fase 1 users predate bestScoreByLevel/bestStarsByLevel) —
+    // without this, code that indexes into them (appUser.bestRecords.x[level])
+    // throws instead of just seeing "no record yet".
+    return {
+      user: {
+        ...data,
+        uid,
+        bestRecords: {
+          bestTimeByLevel: data.bestRecords?.bestTimeByLevel ?? {},
+          bestCostUnitarioByLevel: data.bestRecords?.bestCostUnitarioByLevel ?? {},
+          bestUtilidadByLevel: data.bestRecords?.bestUtilidadByLevel ?? {},
+          bestScoreByLevel: data.bestRecords?.bestScoreByLevel ?? {},
+          bestStarsByLevel: data.bestRecords?.bestStarsByLevel ?? {},
+        },
+      },
+      isNewUser: false,
+    }
   }
 
   const newUser: AppUser = {
