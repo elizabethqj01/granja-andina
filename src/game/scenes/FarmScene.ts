@@ -509,7 +509,8 @@ export class FarmScene extends Phaser.Scene {
     // Reset all scroll sprites to their resting frame so they don't stay highlighted.
     if (this.prevFarmDialog !== null && dialog === null) {
       for (const c of [this.scrollMPD, this.scrollWIP, this.scrollPT]) {
-        ;(c.list[0] as Phaser.GameObjects.Sprite).setFrame(0)
+        const sprite = c.list[0] as Phaser.GameObjects.Sprite
+        sprite.setFrame(0)
       }
     }
     this.prevFarmDialog = dialog

@@ -3,7 +3,45 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     match /users/{userId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+      allow read: if request.auth != null && request.auth.uid == userId;
+      allow create: if request.auth != null && request.auth.uid == userId;
+      // Everything but groupId is free to update; changing groupId requires the
+      // 7-day cooldown (especificaciones.md §2.2) and must stamp groupChangedAt
+      // to now in the same write, so the next attempt can be checked against it.
+      allow update: if request.auth != null && request.auth.uid == userId
+        && (
+          request.resource.data.groupId == resource.data.groupId
+          || (
+            (resource.data.groupChangedAt == null
+              || request.time > resource.data.groupChangedAt + duration.value(7, 'd'))
+            && request.resource.data.groupChangedAt == request.time
+          )
+        );
+    }
+
+    match /groups/{groupId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null
+        && request.resource.data.profesorUid == request.auth.uid
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'profesor';
+      allow update, delete: if false;
+    }
+
+    match /scores/{scoreId} {
+      allow read: if request.auth != null;
+      allow create, update: if request.auth != null
+        && request.resource.data.uid == request.auth.uid
+        && scoreId.matches(request.auth.uid + '_.*');
+    }
+
+    match /rankings/{groupId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Cloud Functions only
+    }
+
+    match /records/{recordId} {
+      allow read: if request.auth != null;
+      allow write: if false; // Cloud Functions only
     }
 
     match /sessions/{sessionId} {

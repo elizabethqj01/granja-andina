@@ -6,6 +6,9 @@ import {
   type FarmLevelConfig,
   type LevelId,
 } from '@/constants/farmBalance'
+import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
+import { calculateCostStatement, isECPVBalanced } from '@/features/cost-statement/calculations'
+import { calculateLevelScore, type LevelScoreResult } from '@/features/gamification/scoring'
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -93,6 +96,7 @@ export interface FarmState {
   levelComplete: boolean
   levelFailed: boolean
   stars: LevelStars
+  finalScore: number | null
 }
 
 export const FARM_GRID = { cols: 12, rows: 12 }
@@ -199,12 +203,54 @@ function findAdjacentFreeTile(
   return dirs[Math.floor(Math.random() * dirs.length)]
 }
 
-// ── Stars ────────────────────────────────────────────────────────────────────
+// ── Scoring ──────────────────────────────────────────────────────────────────
 
-export function computeStars(elapsedSec: number, cfg: FarmLevelConfig = FARM_LEVEL1): LevelStars {
-  if (elapsedSec <= cfg.starThresholdsSec.three) return 3
-  if (elapsedSec <= cfg.starThresholdsSec.two) return 2
-  return 1
+/**
+ * Single source of truth for stars/score at level completion — the official
+ * PuntajeNivel formula (especificaciones.md §2.1), computed from the same
+ * ECPV figures the cost-scroll UI shows, so what the player sees never
+ * drifts from what gets persisted to Firestore (Fase 2).
+ */
+export function computeLevelScoreResult(
+  state: FarmState,
+  cfg: FarmLevelConfig = FARM_LEVEL1
+): LevelScoreResult {
+  const farmStatement = computeFarmCostStatement({
+    cornPurchasedValue: state.cornPurchasedValue,
+    cornStock: state.cornStock,
+    modAccrued: state.modAccrued,
+    cifAccrued: state.cifAccrued,
+    chickenCostAccrued: state.chickenCostAccrued,
+    warehouseEggs: state.warehouseEggs,
+    groundEggsCount: state.groundEggs.length,
+    eggsCollectedTotal: state.eggsCollectedTotal,
+    revenue: state.revenue,
+  })
+
+  const ecpv = calculateCostStatement({
+    initialMP: farmStatement.invInicialMPD,
+    purchases: farmStatement.comprasMPD,
+    finalMP: farmStatement.invFinalMPD,
+    laborCost: farmStatement.mod,
+    cifCost: farmStatement.cif,
+    initialWIP: farmStatement.invInicialWIP,
+    finalWIP: farmStatement.invFinalWIP,
+    initialPT: farmStatement.invInicialPT,
+    finalPT: farmStatement.invFinalPT,
+    revenue: farmStatement.ingresos,
+  })
+
+  return calculateLevelScore({
+    eggsCollectedTotal: state.eggsCollectedTotal,
+    objectiveEggs: cfg.objectiveEggs,
+    chickensBought: state.chickensBought,
+    objectiveChickens: cfg.objectiveChickens,
+    elapsedSec: state.elapsedSec,
+    starThresholdsSec: cfg.starThresholdsSec,
+    costPerEgg: farmStatement.costPerEgg,
+    benchmarkCostPerEgg: cfg.benchmarkCostPerEgg,
+    ecpvBalanced: isECPVBalanced(ecpv),
+  })
 }
 
 // ── Initial state ─────────────────────────────────────────────────────────────
@@ -251,6 +297,7 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     levelComplete: false,
     levelFailed: false,
     stars: 0,
+    finalScore: null,
     notification: null,
   }
 }
@@ -469,7 +516,9 @@ export function advanceFarm(
   const chickensDone = cfg.objectiveChickens === 0 || next.chickensBought >= cfg.objectiveChickens
   if (!next.levelComplete && eggsDone && chickensDone) {
     next.levelComplete = true
-    next.stars = computeStars(next.elapsedSec, cfg)
+    const result = computeLevelScoreResult(next, cfg)
+    next.stars = result.stars
+    next.finalScore = result.score
   }
 
   return next

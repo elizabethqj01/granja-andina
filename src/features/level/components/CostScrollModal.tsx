@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useFarmStore, type CostEvent } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
+import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -27,69 +28,19 @@ function useCostData() {
   const elapsedSec = useFarmStore((s) => s.elapsedSec)
   const costEvents = useFarmStore((s) => s.costEvents)
 
-  // MPD
-  const invInicialMPD = 0
-  const comprasMPD = cornPurchasedValue
-  const disponibleMPD = invInicialMPD + comprasMPD
-  const invFinalMPD = cornStock * FARM_LEVEL1.cornUnitCost
-  const costoMPD = disponibleMPD - invFinalMPD // canonical ECPV: compras − inv.final
-
-  // Conversion
-  const mod = modAccrued
-  const cifOverhead = cifAccrued
-  const cif = cifOverhead + chickenCostAccrued
-
-  // Derived explanatory values (for student breakdown notes)
-  const cornUnitsBought =
-    FARM_LEVEL1.cornUnitCost > 0 ? Math.round(comprasMPD / FARM_LEVEL1.cornUnitCost) : 0
-
-  // Cost of period
-  const costoPeriodo = costoMPD + mod + cif
-
-  // WIP
-  const totalEggs = eggsCollectedTotal + groundEggs.length
-  const costPerEgg = totalEggs > 0 ? costoPeriodo / totalEggs : 0
-  const invInicialWIP = 0
-  const invFinalWIP = Math.round(groundEggs.length * costPerEgg)
-  const costoTerminada = invInicialWIP + costoPeriodo - invFinalWIP
-
-  // PT
-  const invInicialPT = 0
-  const invFinalPT = Math.round(warehouseEggs * costPerEgg)
-  const costoVentas = invInicialPT + costoTerminada - invFinalPT
-
-  // Result
-  const ingresos = revenue
-  const utilidad = ingresos - costoVentas
-
-  return {
-    invInicialMPD,
-    comprasMPD,
-    disponibleMPD,
-    invFinalMPD,
-    costoMPD,
-    mod,
-    cifOverhead,
-    chickenCostAccrued,
-    cif,
-    cornUnitsBought,
-    costoPeriodo,
-    invInicialWIP,
-    invFinalWIP,
-    costoTerminada,
-    invInicialPT,
-    invFinalPT,
-    costoVentas,
-    ingresos,
-    utilidad,
+  const statement = computeFarmCostStatement({
+    cornPurchasedValue,
     cornStock,
-    groundEggsCount: groundEggs.length,
+    modAccrued,
+    cifAccrued,
+    chickenCostAccrued,
     warehouseEggs,
-    totalEggs,
-    costPerEgg,
-    elapsedSec,
-    costEvents,
-  }
+    groundEggsCount: groundEggs.length,
+    eggsCollectedTotal,
+    revenue,
+  })
+
+  return { ...statement, elapsedSec, costEvents }
 }
 
 // ── Row components ─────────────────────────────────────────────────────────────

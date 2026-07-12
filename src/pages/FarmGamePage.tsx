@@ -14,8 +14,9 @@ import { TutorialOverlay } from '@/features/education/TutorialOverlay'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
 import { useAuthStore } from '@/store/authStore'
-import { useFarmStore } from '@/store/farmStore'
-import { createSession, completeSession } from '@/firebase/firestore'
+import { useFarmStore, type FarmState } from '@/store/farmStore'
+import { createSession, completeSession, writeScore, updateBestRecords } from '@/firebase/firestore'
+import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 
 /**
  * Level 1 game screen — Farm pivot. Owns the farm engine lifecycle and lays the
@@ -31,6 +32,8 @@ export function FarmGamePage() {
   const prevDialogRef = useRef<string | null>(null)
 
   const uid = useAuthStore((s) => s.user?.uid ?? null)
+  const appUser = useAuthStore((s) => s.appUser)
+  const setAppUser = useAuthStore((s) => s.setAppUser)
   const levelComplete = useFarmStore((s) => s.levelComplete)
   const levelFailed = useFarmStore((s) => s.levelFailed)
   const sessionIdRef = useRef<string | null>(null)
@@ -45,16 +48,66 @@ export function FarmGamePage() {
     })
   }
 
+  async function persistScoreIfNewBest(farm: FarmState) {
+    if (farm.finalScore === null || !uid || !appUser) return
+    const key = String(levelId)
+    const previousBest = appUser.bestRecords.bestScoreByLevel[key] ?? -1
+    if (farm.finalScore <= previousBest) return
+
+    const statement = computeFarmCostStatement({
+      cornPurchasedValue: farm.cornPurchasedValue,
+      cornStock: farm.cornStock,
+      modAccrued: farm.modAccrued,
+      cifAccrued: farm.cifAccrued,
+      chickenCostAccrued: farm.chickenCostAccrued,
+      warehouseEggs: farm.warehouseEggs,
+      groundEggsCount: farm.groundEggs.length,
+      eggsCollectedTotal: farm.eggsCollectedTotal,
+      revenue: farm.revenue,
+    })
+    const record = {
+      score: farm.finalScore,
+      stars: farm.stars,
+      timeSeconds: farm.elapsedSec,
+      costoUnitario: statement.costPerEgg,
+      utilidad: statement.utilidad,
+    }
+
+    await writeScore(uid, levelId, appUser.groupId, record)
+    await updateBestRecords(uid, levelId, appUser, record)
+
+    const prevStars = appUser.bestRecords.bestStarsByLevel[key] ?? 0
+    setAppUser({
+      ...appUser,
+      totalScore: appUser.totalScore - Math.max(previousBest, 0) + record.score,
+      starsTotal: appUser.starsTotal - prevStars + record.stars,
+      levelsCompleted:
+        appUser.levelsCompleted + (key in appUser.bestRecords.bestScoreByLevel ? 0 : 1),
+      bestRecords: {
+        ...appUser.bestRecords,
+        bestScoreByLevel: { ...appUser.bestRecords.bestScoreByLevel, [key]: record.score },
+        bestStarsByLevel: { ...appUser.bestRecords.bestStarsByLevel, [key]: record.stars },
+        bestTimeByLevel: { ...appUser.bestRecords.bestTimeByLevel, [key]: record.timeSeconds },
+        bestCostUnitarioByLevel: {
+          ...appUser.bestRecords.bestCostUnitarioByLevel,
+          [key]: record.costoUnitario,
+        },
+        bestUtilidadByLevel: { ...appUser.bestRecords.bestUtilidadByLevel, [key]: record.utilidad },
+      },
+    })
+  }
+
   function closeSession(status: 'completed' | 'abandoned') {
     if (!sessionOpenRef.current || !sessionIdRef.current) return
     sessionOpenRef.current = false
-    const { cash, eggsSold } = useFarmStore.getState()
+    const farm = useFarmStore.getState()
     void completeSession(sessionIdRef.current, {
       status,
-      finalScore: null, // filled in once the scoring formula ships (backlog Fase 2)
-      finalProfit: cash,
-      decisionCount: eggsSold,
+      finalScore: farm.finalScore,
+      finalProfit: farm.cash,
+      decisionCount: farm.eggsSold,
     })
+    if (status === 'completed') void persistScoreIfNewBest(farm)
   }
 
   useEffect(() => {
@@ -83,6 +136,7 @@ export function FarmGamePage() {
     if (levelComplete || levelFailed) {
       closeSession(levelComplete ? 'completed' : 'abandoned')
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeSession reads fresh state via useFarmStore.getState()
   }, [levelComplete, levelFailed])
 
   function handleRestart() {

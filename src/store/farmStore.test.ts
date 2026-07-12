@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  advanceFarm,
-  computeStars,
-  useFarmStore,
-  type FarmState,
-  type ChickenState,
-} from './farmStore'
+import { advanceFarm, useFarmStore, type FarmState, type ChickenState } from './farmStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
 const defaultChicken = {
@@ -48,26 +42,11 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     levelComplete: false,
     levelFailed: false,
     stars: 0,
+    finalScore: null,
     notification: null,
     ...overrides,
   }
 }
-
-describe('computeStars', () => {
-  it('should_award3Stars_when_under60Seconds', () => {
-    expect(computeStars(45)).toBe(3)
-    expect(computeStars(60)).toBe(3)
-  })
-
-  it('should_award2Stars_when_between61And120Seconds', () => {
-    expect(computeStars(61)).toBe(2)
-    expect(computeStars(120)).toBe(2)
-  })
-
-  it('should_award1Star_when_over120Seconds', () => {
-    expect(computeStars(121)).toBe(1)
-  })
-})
 
 describe('advanceFarm', () => {
   it('should_accrueCif_when_running', () => {

@@ -12,6 +12,9 @@ export const FARM_LEVEL1 = {
   cornUnitCost: 4,
   cornPerRecharge: 5,
   eggSellPrice: 10,
+  // Healthy unit-cost reference for the score's "eficiencia en costo unitario"
+  // component (especificaciones.md §2.1) — costing half the sale price counts as 100%.
+  benchmarkCostPerEgg: 5,
 
   // ── Production & labor timing (seconds) ────────────────────────────────────
   eggLayTimeSec: 8,
@@ -71,6 +74,7 @@ export interface FarmLevelConfig {
   cornUnitCost: number
   cornPerRecharge: number
   eggSellPrice: number
+  benchmarkCostPerEgg: number
   eggLayTimeSec: number
   farmerCollectTimeSec: number
   modCostPerSec: number

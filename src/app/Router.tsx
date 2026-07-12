@@ -4,6 +4,7 @@ import { RequireAuth } from '@/components/RequireAuth'
 import { NameEntryPage } from '@/pages/NameEntryPage'
 import { MainMenuPage } from '@/pages/MainMenuPage'
 import { LevelMapPage } from '@/pages/LevelMapPage'
+import { ScoresPage } from '@/pages/ScoresPage'
 
 const FarmGamePage = lazy(() =>
   import('@/pages/FarmGamePage').then((m) => ({ default: m.FarmGamePage }))
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
       {
         path: '/levels',
         element: <LevelMapPage />,
+      },
+      {
+        path: '/scores',
+        element: <ScoresPage />,
       },
       {
         path: '/play/:level',

@@ -33,6 +33,9 @@ export function MainMenuPage() {
           <button onClick={() => navigate('/levels')} className="btn-primary py-3 text-base">
             Iniciar juego
           </button>
+          <button onClick={() => navigate('/scores')} className="btn-secondary py-3 text-base">
+            🏆 Puntajes y Ranking
+          </button>
           <button onClick={() => setDialog('credits')} className="btn-secondary py-3 text-base">
             Créditos
           </button>

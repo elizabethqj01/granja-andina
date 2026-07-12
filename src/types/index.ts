@@ -226,6 +226,11 @@ export interface UserBestRecords {
   bestTimeByLevel: Record<string, number>
   bestCostUnitarioByLevel: Record<string, number>
   bestUtilidadByLevel: Record<string, number>
+  // Not in the original especificaciones.md §1.2 schema, but required to keep
+  // totalScore/starsTotal (each "SUMA de la mejor marca por nivel") correct
+  // when a level's best attempt is overwritten by an even better one.
+  bestScoreByLevel: Record<string, number>
+  bestStarsByLevel: Record<string, number>
 }
 
 export interface AppUser {
@@ -235,10 +240,48 @@ export interface AppUser {
   photoURL: string
   role: UserRole
   groupId: string | null
+  groupChangedAt: Timestamp | null
   totalScore: number
   starsTotal: number
   levelsCompleted: number
   bestRecords: UserBestRecords
   createdAt: Timestamp
   lastLoginAt: Timestamp
+}
+
+// ─── Groups / Scores / Ranking ─────────────────────────────────────────────────
+
+export interface Group {
+  codigo: string
+  nombre: string
+  profesorUid: string
+  activo: boolean
+  createdAt: Timestamp
+}
+
+export interface ScoreEntry {
+  uid: string
+  levelId: GameLevel
+  score: number
+  stars: LevelStars
+  timeSeconds: number
+  costoUnitario: number
+  utilidad: number
+  groupId: string | null
+  createdAt: Timestamp
+}
+
+export interface RankingEntry {
+  uid: string
+  displayName: string
+  photoURL: string
+  totalScore: number
+  starsTotal: number
+}
+
+export interface GlobalRecords {
+  menorCostoUnitario: { uid: string; displayName: string; value: number } | null
+  tiempoMasRapido: { uid: string; displayName: string; value: number } | null
+  mayorUtilidad: { uid: string; displayName: string; value: number } | null
+  updatedAt: Timestamp
 }
