@@ -47,6 +47,16 @@ export type SaleState = 'idle' | 'in-transit'
 export interface Farmer {
   state: FarmerState
   targetEggId: string | null
+  workedTicksThisSpell: number // ticks accrued since the last idle→working flush; feeds a CostEvent on completion
+}
+
+export type CostEventType = 'mod' | 'chicken'
+
+export interface CostEvent {
+  id: string
+  type: CostEventType
+  detail: string
+  amount: number
 }
 
 export interface FarmState {
@@ -70,6 +80,10 @@ export interface FarmState {
   revenue: number
   eggsSold: number
 
+  // Chronological log of discrete cost events (MOD job completions, chicken purchases) —
+  // drives the "live" reveal animation in the cost pergamino
+  costEvents: CostEvent[]
+
   // Truck sale mechanic
   saleState: SaleState
   pendingSaleIncome: number
@@ -87,6 +101,7 @@ export const FARM_GRID = { cols: 12, rows: 12 }
 let eggCounter = 0
 let cornCounter = 0
 let chickenCounter = 0
+let costEventCounter = 0
 function nextEggId(): string {
   eggCounter += 1
   return `egg-${eggCounter}`
@@ -98,6 +113,26 @@ function nextCornId(): string {
 function nextChickenId(): string {
   chickenCounter += 1
   return `chicken-${chickenCounter}`
+}
+function nextCostEventId(): string {
+  costEventCounter += 1
+  return `cost-event-${costEventCounter}`
+}
+
+// Flushes the farmer's accrued working ticks (if any) into a single MOD CostEvent.
+// Called whenever the farmer transitions from working back to idle.
+function flushModEvent(next: FarmState, cfg: FarmLevelConfig): void {
+  const ticks = next.farmer.workedTicksThisSpell
+  if (ticks <= 0) return
+  next.costEvents = [
+    ...next.costEvents,
+    {
+      id: nextCostEventId(),
+      type: 'mod',
+      amount: ticks * cfg.modCostPerSec,
+      detail: `${ticks} seg trabajados por el granjero`,
+    },
+  ]
 }
 
 // Module-level timer — cleared/reset whenever a new notification is dispatched
@@ -201,13 +236,14 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     warehouseEggs: 0,
     eggsCollectedTotal: 0,
     elapsedSec: 0,
-    farmer: { state: 'idle', targetEggId: null },
+    farmer: { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 },
     cornPurchasedValue: cfg.initialCornStock * cfg.cornUnitCost,
     modAccrued: 0,
     cifAccrued: 0,
     chickenCostAccrued: 0,
     revenue: 0,
     eggsSold: 0,
+    costEvents: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -241,7 +277,10 @@ export function advanceFarm(
   // 1) Accruals — skipped while tutorial is active
   if (!tutorialActive) {
     next.cifAccrued += cfg.cifCostPerSec
-    if (next.farmer.state === 'working') next.modAccrued += cfg.modCostPerSec
+    if (next.farmer.state === 'working') {
+      next.modAccrued += cfg.modCostPerSec
+      next.farmer.workedTicksThisSpell += 1
+    }
   }
 
   // 2) Chicken AI
@@ -409,7 +448,8 @@ export function advanceFarm(
   if (next.farmer.state === 'working' && next.farmer.targetEggId) {
     const egg = next.groundEggs.find((e) => e.id === next.farmer.targetEggId)
     if (!egg) {
-      next.farmer = { state: 'idle', targetEggId: null }
+      flushModEvent(next, cfg)
+      next.farmer = { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 }
     } else {
       egg.collectElapsedSec += 1
       if (egg.collectElapsedSec >= cfg.farmerCollectTimeSec) {
@@ -418,7 +458,8 @@ export function advanceFarm(
           next.warehouseEggs += 1
           next.eggsCollectedTotal += 1
         }
-        next.farmer = { state: 'idle', targetEggId: null }
+        flushModEvent(next, cfg)
+        next.farmer = { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 }
       }
     }
   }
@@ -467,6 +508,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       eggCounter = 0
       cornCounter = 0
       chickenCounter = 0
+      costEventCounter = 0
       if (notificationTimer) {
         clearTimeout(notificationTimer)
         notificationTimer = null
@@ -520,7 +562,14 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         if (e.id === eggId) return { ...e, collecting: true }
         return e
       })
-      set({ groundEggs, farmer: { state: 'working', targetEggId: eggId } })
+      set({
+        groundEggs,
+        farmer: {
+          state: 'working',
+          targetEggId: eggId,
+          workedTicksThisSpell: s.farmer.workedTicksThisSpell,
+        },
+      })
     },
 
     // Player confirms a sale via the sell modal — loads truck and removes goods
@@ -575,6 +624,15 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         cash: s.cash - activeCfg.chickenBuyPrice,
         chickensBought: s.chickensBought + 1,
         chickenCostAccrued: s.chickenCostAccrued + activeCfg.chickenBuyPrice,
+        costEvents: [
+          ...s.costEvents,
+          {
+            id: nextCostEventId(),
+            type: 'chicken',
+            amount: activeCfg.chickenBuyPrice,
+            detail: `1 × $${activeCfg.chickenBuyPrice} c/u`,
+          },
+        ],
         chickens: [
           ...s.chickens,
           {

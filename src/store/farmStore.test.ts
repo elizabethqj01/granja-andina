@@ -33,13 +33,14 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     warehouseEggs: 0,
     eggsCollectedTotal: 0,
     elapsedSec: 0,
-    farmer: { state: 'idle', targetEggId: null },
+    farmer: { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 },
     cornPurchasedValue: 0,
     modAccrued: 0,
     cifAccrued: 0,
     chickenCostAccrued: 0,
     revenue: 0,
     eggsSold: 0,
+    costEvents: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -238,7 +239,7 @@ describe('advanceFarm', () => {
           ageTimerSec: FARM_LEVEL1.eggSpoilTimeSec + 10, // way over spoil limit
         },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
     })
     const next = advanceFarm(state)
     // Egg survives spoil filter because collecting === true; farmer hasn't finished yet (1 of 3 ticks)
@@ -250,7 +251,7 @@ describe('advanceFarm', () => {
       groundEggs: [
         { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
     })
     for (let i = 0; i < FARM_LEVEL1.farmerCollectTimeSec; i++) state = advanceFarm(state)
     expect(state.groundEggs).toHaveLength(0)
@@ -264,7 +265,7 @@ describe('advanceFarm', () => {
       groundEggs: [
         { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
     })
     const next = advanceFarm(state)
     expect(next.modAccrued).toBe(FARM_LEVEL1.modCostPerSec)
@@ -283,7 +284,7 @@ describe('advanceFarm', () => {
           ageTimerSec: 0,
         },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
       elapsedSec: 30,
     })
     const next = advanceFarm(state)
@@ -303,7 +304,7 @@ describe('advanceFarm', () => {
       groundEggs: [
         { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 0, ageTimerSec: 0 },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
     })
     let s = state
     for (let i = 0; i < FARM_LEVEL1.farmerCollectTimeSec; i++) s = advanceFarm(s)
@@ -347,7 +348,7 @@ describe('useFarmStore actions', () => {
     })
     useFarmStore.getState().requestCollect('e1')
     const s = useFarmStore.getState()
-    expect(s.farmer).toEqual({ state: 'working', targetEggId: 'e1' })
+    expect(s.farmer).toEqual({ state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 })
     expect(s.groundEggs[0].collecting).toBe(true)
   })
 
@@ -357,7 +358,7 @@ describe('useFarmStore actions', () => {
         { id: 'e1', col: 3, row: 2, collecting: true, collectElapsedSec: 1, ageTimerSec: 0 },
         { id: 'e2', col: 5, row: 4, collecting: false, collectElapsedSec: 0, ageTimerSec: 0 },
       ],
-      farmer: { state: 'working', targetEggId: 'e1' },
+      farmer: { state: 'working', targetEggId: 'e1', workedTicksThisSpell: 0 },
     })
     useFarmStore.getState().requestCollect('e2')
     const s = useFarmStore.getState()
