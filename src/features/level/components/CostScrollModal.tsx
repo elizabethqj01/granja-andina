@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { useFarmStore, type CostEvent } from '@/store/farmStore'
+import { useFarmStore } from '@/store/farmStore'
 import { useUiStore } from '@/store/uiStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
@@ -49,7 +49,7 @@ function useCostData() {
     elapsedSec
   )
 
-  return { ...statement, elapsedSec, costEvents, journalEntries }
+  return { ...statement, elapsedSec, journalEntries }
 }
 
 // ── Row components ─────────────────────────────────────────────────────────────
@@ -161,52 +161,6 @@ function Note({ text }: { text: string }) {
   )
 }
 
-// ── Live event history (WIP page) ───────────────────────────────────────────────
-
-function SceneToken({ emoji, pulseId }: { emoji: string; pulseId?: string }) {
-  return (
-    <motion.div
-      key={pulseId ?? 'idle'}
-      initial={pulseId ? { scale: 1.35, boxShadow: '0 0 0 6px rgba(201,148,43,0.45)' } : false}
-      animate={{ scale: 1, boxShadow: '0 0 0 0px rgba(201,148,43,0)' }}
-      transition={{ duration: 0.6, ease: 'easeOut' }}
-      style={{
-        width: '28px',
-        height: '28px',
-        borderRadius: '50%',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        fontSize: '14px',
-        background: '#fdf6e3',
-        border: '2px solid #d8c9a3',
-        flexShrink: 0,
-      }}
-    >
-      {emoji}
-    </motion.div>
-  )
-}
-
-function EventHistory({ events }: { events: CostEvent[] }) {
-  if (events.length === 0) return null
-  return (
-    <>
-      {events.map((ev) => (
-        <motion.div
-          key={ev.id}
-          initial={{ opacity: 0, y: 6, backgroundColor: 'rgba(201,148,43,0.4)' }}
-          animate={{ opacity: 1, y: 0, backgroundColor: 'rgba(201,148,43,0)' }}
-          transition={{ duration: 0.9, ease: 'easeOut' }}
-          style={{ borderRadius: '3px' }}
-        >
-          <Note text={`${ev.type === 'mod' ? '👨‍🌾' : '🐔'} ${ev.detail} → ${fmt(ev.amount)}`} />
-        </motion.div>
-      ))}
-    </>
-  )
-}
-
 // ── Section content ────────────────────────────────────────────────────────────
 
 type CostData = ReturnType<typeof useCostData>
@@ -230,22 +184,12 @@ function MPDContent({ d }: { d: CostData }) {
   )
 }
 
-function WIPContent({ d, revealedCount }: { d: CostData; revealedCount: number }) {
-  const revealed = d.costEvents.slice(0, revealedCount)
-  const lastMod = [...revealed].reverse().find((e) => e.type === 'mod')
-  const lastChicken = [...revealed].reverse().find((e) => e.type === 'chicken')
-
+function WIPContent({ d }: { d: CostData }) {
   return (
     <>
       <SectionTitle emoji="⚙️" title="En Proceso — Producción" />
       <Note text={`Período: ${Math.floor(d.elapsedSec / 60)}m ${d.elapsedSec % 60}s`} />
       <Spacer />
-      {(lastMod || lastChicken) && (
-        <div className="flex items-center gap-2" style={{ marginBottom: '8px' }}>
-          <SceneToken emoji="👨‍🌾" pulseId={lastMod?.id} />
-          <SceneToken emoji="🐔" pulseId={lastChicken?.id} />
-        </div>
-      )}
       <Row label="Costo de MPD" value={fmt(d.costoMPD)} dim />
       <Row op="(+)" label="MOD — Mano de obra directa" value={fmt(d.mod)} badge="conversión" />
       <Row
@@ -259,7 +203,6 @@ function WIPContent({ d, revealedCount }: { d: CostData; revealedCount: number }
       />
       <Note text={`Costos primos (MPD + MOD) = ${fmt(d.costoMPD + d.mod)}`} />
       <Note text={`Costos de conversión (MOD + CIF) = ${fmt(d.mod + d.cif)}`} />
-      <EventHistory events={revealed} />
       <Row op="(=)" label="Costo de producción del período" value={fmt(d.costoPeriodo)} total />
       <Note
         text={`Costo unitario por huevo = ${fmt(d.costoPeriodo)} ÷ ${d.totalEggs} huevo(s) producidos = ${fmtUnit(d.costPerEgg)} c/u`}
@@ -446,8 +389,6 @@ export function CostScrollModal() {
 
   const [idx, setIdx] = useState(0)
   const [dir, setDir] = useState(1)
-  const [revealedCount, setRevealedCount] = useState(0)
-  const revealTimers = useRef<number[]>([])
 
   const isOpen =
     farmDialog === 'scroll-mpd' || farmDialog === 'scroll-wip' || farmDialog === 'scroll-pt'
@@ -459,41 +400,6 @@ export function CostScrollModal() {
     else if (farmDialog === 'scroll-wip') setIdx(1)
     else if (farmDialog === 'scroll-pt') setIdx(2)
   }, [farmDialog])
-
-  // Replay newly-recorded cost events (MOD jobs, chicken purchases) one by one when the
-  // student lands on the WIP page, instead of dumping the whole history at once. A level
-  // restart shrinks costEvents, so we also snap revealedCount back down when that happens.
-  useEffect(() => {
-    const total = d.costEvents.length
-
-    if (total < revealedCount) {
-      setRevealedCount(total)
-      return
-    }
-
-    if (!isOpen || pageKey !== 'wip' || total === revealedCount) return
-
-    revealTimers.current.forEach(clearTimeout)
-    revealTimers.current = []
-
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (reduceMotion) {
-      setRevealedCount(total)
-      return
-    }
-
-    const stagger = 550
-    for (let i = 0; i < total - revealedCount; i++) {
-      const timer = window.setTimeout(() => setRevealedCount((c) => c + 1), (i + 1) * stagger)
-      revealTimers.current.push(timer)
-    }
-
-    return () => {
-      revealTimers.current.forEach(clearTimeout)
-      revealTimers.current = []
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, pageKey, d.costEvents.length])
 
   if (!isOpen) return null
 
@@ -609,7 +515,7 @@ export function CostScrollModal() {
                 style={{ padding: '10px 20px 12px 58px', willChange: 'transform, opacity' }}
               >
                 {pageKey === 'mpd' && <MPDContent d={d} />}
-                {pageKey === 'wip' && <WIPContent d={d} revealedCount={revealedCount} />}
+                {pageKey === 'wip' && <WIPContent d={d} />}
                 {pageKey === 'pt' && <PTContent d={d} />}
                 {pageKey === 'diario' && <JournalContent d={d} />}
               </motion.div>
