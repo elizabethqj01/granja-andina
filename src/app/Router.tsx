@@ -1,10 +1,10 @@
 import { lazy, Suspense } from 'react'
 import { createBrowserRouter, RouterProvider } from 'react-router-dom'
-import { RequireName } from '@/components/RequireName'
+import { RequireAuth } from '@/components/RequireAuth'
 import { NameEntryPage } from '@/pages/NameEntryPage'
 import { MainMenuPage } from '@/pages/MainMenuPage'
 import { LevelMapPage } from '@/pages/LevelMapPage'
-import { LoginPage } from '@/pages/LoginPage'
+import { ScoresPage } from '@/pages/ScoresPage'
 
 const FarmGamePage = lazy(() =>
   import('@/pages/FarmGamePage').then((m) => ({ default: m.FarmGamePage }))
@@ -19,19 +19,14 @@ function PageFallback() {
 }
 
 const router = createBrowserRouter([
-  // Screen 1 — player name entry (public entry point)
+  // Screen 1 (P-00) — Google sign-in, the sole public entry point
   {
     path: '/',
     element: <NameEntryPage />,
   },
-  // Legacy Firebase login kept available for authenticated features
+  // Farm flow — guarded by an authenticated Google session
   {
-    path: '/login',
-    element: <LoginPage />,
-  },
-  // Farm pivot flow — guarded by the local player name
-  {
-    element: <RequireName />,
+    element: <RequireAuth />,
     children: [
       {
         path: '/menu',
@@ -40,6 +35,10 @@ const router = createBrowserRouter([
       {
         path: '/levels',
         element: <LevelMapPage />,
+      },
+      {
+        path: '/scores',
+        element: <ScoresPage />,
       },
       {
         path: '/play/:level',

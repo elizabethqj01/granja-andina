@@ -1,11 +1,20 @@
 import { create } from 'zustand'
-import type { LevelStars } from '@/types'
+import type { LevelStars, ScoreBreakdown, CostEventType, CostEvent, Transaction } from '@/types'
+
+// Re-exported so existing consumers (CostScrollModal, journalEntries, etc.)
+// can keep importing these from '@/store/farmStore' — the canonical
+// definitions live in '@/types' to avoid a circular import (this file
+// already imports LevelStars/ScoreBreakdown from there).
+export type { CostEventType, CostEvent, Transaction }
 import {
   FARM_LEVEL1,
   FARM_LEVEL2,
   type FarmLevelConfig,
   type LevelId,
 } from '@/constants/farmBalance'
+import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
+import { calculateCostStatement, isECPVBalanced } from '@/features/cost-statement/calculations'
+import { calculateLevelScore, type LevelScoreResult } from '@/features/gamification/scoring'
 
 // ── Domain types ──────────────────────────────────────────────────────────────
 
@@ -50,15 +59,6 @@ export interface Farmer {
   workedTicksThisSpell: number // ticks accrued since the last idle→working flush; feeds a CostEvent on completion
 }
 
-export type CostEventType = 'mod' | 'chicken'
-
-export interface CostEvent {
-  id: string
-  type: CostEventType
-  detail: string
-  amount: number
-}
-
 export interface FarmState {
   activeLevelId: LevelId
   cash: number
@@ -84,6 +84,9 @@ export interface FarmState {
   // drives the "live" reveal animation in the cost pergamino
   costEvents: CostEvent[]
 
+  // P-05B — general transaction log, capped at the last 50 entries
+  transactions: Transaction[]
+
   // Truck sale mechanic
   saleState: SaleState
   pendingSaleIncome: number
@@ -93,6 +96,8 @@ export interface FarmState {
   levelComplete: boolean
   levelFailed: boolean
   stars: LevelStars
+  finalScore: number | null
+  scoreBreakdown: ScoreBreakdown | null
 }
 
 export const FARM_GRID = { cols: 12, rows: 12 }
@@ -102,6 +107,7 @@ let eggCounter = 0
 let cornCounter = 0
 let chickenCounter = 0
 let costEventCounter = 0
+let transactionCounter = 0
 function nextEggId(): string {
   eggCounter += 1
   return `egg-${eggCounter}`
@@ -118,6 +124,21 @@ function nextCostEventId(): string {
   costEventCounter += 1
   return `cost-event-${costEventCounter}`
 }
+function nextTransactionId(): string {
+  transactionCounter += 1
+  return `txn-${transactionCounter}`
+}
+
+// P-05B — appends a transaction, keeping only the most recent 50 so a long
+// session doesn't grow this array unbounded.
+function appendTransaction(
+  current: Transaction[],
+  atSec: number,
+  label: string,
+  amount: number
+): Transaction[] {
+  return [...current, { id: nextTransactionId(), atSec, label, amount }].slice(-50)
+}
 
 // Flushes the farmer's accrued working ticks (if any) into a single MOD CostEvent.
 // Called whenever the farmer transitions from working back to idle.
@@ -128,6 +149,7 @@ function flushModEvent(next: FarmState, cfg: FarmLevelConfig): void {
     ...next.costEvents,
     {
       id: nextCostEventId(),
+      atSec: next.elapsedSec,
       type: 'mod',
       amount: ticks * cfg.modCostPerSec,
       detail: `${ticks} seg trabajados por el granjero`,
@@ -199,12 +221,54 @@ function findAdjacentFreeTile(
   return dirs[Math.floor(Math.random() * dirs.length)]
 }
 
-// ── Stars ────────────────────────────────────────────────────────────────────
+// ── Scoring ──────────────────────────────────────────────────────────────────
 
-export function computeStars(elapsedSec: number, cfg: FarmLevelConfig = FARM_LEVEL1): LevelStars {
-  if (elapsedSec <= cfg.starThresholdsSec.three) return 3
-  if (elapsedSec <= cfg.starThresholdsSec.two) return 2
-  return 1
+/**
+ * Single source of truth for stars/score at level completion — the official
+ * PuntajeNivel formula (especificaciones.md §2.1), computed from the same
+ * ECPV figures the cost-scroll UI shows, so what the player sees never
+ * drifts from what gets persisted to Firestore (Fase 2).
+ */
+export function computeLevelScoreResult(
+  state: FarmState,
+  cfg: FarmLevelConfig = FARM_LEVEL1
+): LevelScoreResult {
+  const farmStatement = computeFarmCostStatement({
+    cornPurchasedValue: state.cornPurchasedValue,
+    cornStock: state.cornStock,
+    modAccrued: state.modAccrued,
+    cifAccrued: state.cifAccrued,
+    chickenCostAccrued: state.chickenCostAccrued,
+    warehouseEggs: state.warehouseEggs,
+    groundEggsCount: state.groundEggs.length,
+    eggsCollectedTotal: state.eggsCollectedTotal,
+    revenue: state.revenue,
+  })
+
+  const ecpv = calculateCostStatement({
+    initialMP: farmStatement.invInicialMPD,
+    purchases: farmStatement.comprasMPD,
+    finalMP: farmStatement.invFinalMPD,
+    laborCost: farmStatement.mod,
+    cifCost: farmStatement.cif,
+    initialWIP: farmStatement.invInicialWIP,
+    finalWIP: farmStatement.invFinalWIP,
+    initialPT: farmStatement.invInicialPT,
+    finalPT: farmStatement.invFinalPT,
+    revenue: farmStatement.ingresos,
+  })
+
+  return calculateLevelScore({
+    eggsCollectedTotal: state.eggsCollectedTotal,
+    objectiveEggs: cfg.objectiveEggs,
+    chickensBought: state.chickensBought,
+    objectiveChickens: cfg.objectiveChickens,
+    elapsedSec: state.elapsedSec,
+    starThresholdsSec: cfg.starThresholdsSec,
+    costPerEgg: farmStatement.costPerEgg,
+    benchmarkCostPerEgg: cfg.benchmarkCostPerEgg,
+    ecpvBalanced: isECPVBalanced(ecpv),
+  })
 }
 
 // ── Initial state ─────────────────────────────────────────────────────────────
@@ -244,6 +308,7 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     revenue: 0,
     eggsSold: 0,
     costEvents: [],
+    transactions: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -251,6 +316,8 @@ function initialFarmState(cfg: FarmLevelConfig = FARM_LEVEL1, levelId: LevelId =
     levelComplete: false,
     levelFailed: false,
     stars: 0,
+    finalScore: null,
+    scoreBreakdown: null,
     notification: null,
   }
 }
@@ -457,6 +524,19 @@ export function advanceFarm(
         if (next.warehouseEggs < cfg.maxWarehouseEggs) {
           next.warehouseEggs += 1
           next.eggsCollectedTotal += 1
+          // Precise value is computed at review time from the period's final
+          // costPerEgg (same simplification the rest of the app already uses
+          // — a period average, not per-unit costing).
+          next.costEvents = [
+            ...next.costEvents,
+            {
+              id: nextCostEventId(),
+              atSec: next.elapsedSec,
+              type: 'egg_collected',
+              amount: 0,
+              detail: 'Huevo recolectado al almacén',
+            },
+          ]
         }
         flushModEvent(next, cfg)
         next.farmer = { state: 'idle', targetEggId: null, workedTicksThisSpell: 0 }
@@ -469,7 +549,10 @@ export function advanceFarm(
   const chickensDone = cfg.objectiveChickens === 0 || next.chickensBought >= cfg.objectiveChickens
   if (!next.levelComplete && eggsDone && chickensDone) {
     next.levelComplete = true
-    next.stars = computeStars(next.elapsedSec, cfg)
+    const result = computeLevelScoreResult(next, cfg)
+    next.stars = result.stars
+    next.finalScore = result.score
+    next.scoreBreakdown = result.breakdown
   }
 
   return next
@@ -509,6 +592,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
       cornCounter = 0
       chickenCounter = 0
       costEventCounter = 0
+      transactionCounter = 0
       if (notificationTimer) {
         clearTimeout(notificationTimer)
         notificationTimer = null
@@ -532,6 +616,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         cash: s.cash - cost,
         cornStock: s.cornStock + activeCfg.cornPerRecharge,
         cornPurchasedValue: s.cornPurchasedValue + cost,
+        transactions: appendTransaction(s.transactions, s.elapsedSec, 'Compra maíz', -cost),
       })
     },
 
@@ -545,6 +630,16 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         placedCorn: [
           ...s.placedCorn,
           { id: nextCornId(), col, row, remainingEnergy: activeCfg.chickenCornEnergyRestore },
+        ],
+        costEvents: [
+          ...s.costEvents,
+          {
+            id: nextCostEventId(),
+            atSec: s.elapsedSec,
+            type: 'corn_placed',
+            amount: activeCfg.cornUnitCost,
+            detail: 'Maíz entregado a la gallina',
+          },
         ],
       })
     },
@@ -603,6 +698,12 @@ export const useFarmStore = create<FarmStore>((set, get) => {
         pendingSaleIncome: 0,
         pendingSaleEggs: 0,
         saleState: 'idle',
+        transactions: appendTransaction(
+          s.transactions,
+          s.elapsedSec,
+          'Venta de huevos',
+          s.pendingSaleIncome
+        ),
       })
     },
 
@@ -628,6 +729,7 @@ export const useFarmStore = create<FarmStore>((set, get) => {
           ...s.costEvents,
           {
             id: nextCostEventId(),
+            atSec: s.elapsedSec,
             type: 'chicken',
             amount: activeCfg.chickenBuyPrice,
             detail: `1 × $${activeCfg.chickenBuyPrice} c/u`,
@@ -649,6 +751,12 @@ export const useFarmStore = create<FarmStore>((set, get) => {
             deadTimerSec: 0,
           },
         ],
+        transactions: appendTransaction(
+          s.transactions,
+          s.elapsedSec,
+          'Compra gallina',
+          -activeCfg.chickenBuyPrice
+        ),
       })
     },
 

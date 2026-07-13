@@ -1,7 +1,4 @@
-packages:
-  - functions
-
-# Pin @types/node to a TS-compatible version across the workspace
+# Pin @types/node to a TS-compatible version
 # (a fresh install otherwise resolves @types/node 25.x, which breaks tsc -b).
 overrides:
   '@types/node': 22.19.19

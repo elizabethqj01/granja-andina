@@ -18,7 +18,14 @@ export interface AggregatedMetrics {
 
 export function aggregate(sessions: SessionMetrics[]): AggregatedMetrics {
   if (sessions.length === 0) {
-    return { sessionCount: 0, avgProfit: 0, avgScore: 0, avgDecisions: 0, bestProfit: 0, bestScore: 0 }
+    return {
+      sessionCount: 0,
+      avgProfit: 0,
+      avgScore: 0,
+      avgDecisions: 0,
+      bestProfit: 0,
+      bestScore: 0,
+    }
   }
 
   const withProfit = sessions.filter((s) => s.finalProfit !== null)

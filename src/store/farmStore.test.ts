@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest'
-import {
-  advanceFarm,
-  computeStars,
-  useFarmStore,
-  type FarmState,
-  type ChickenState,
-} from './farmStore'
+import { advanceFarm, useFarmStore, type FarmState, type ChickenState } from './farmStore'
 import { FARM_LEVEL1 } from '@/constants/farmBalance'
 
 const defaultChicken = {
@@ -41,6 +35,7 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     revenue: 0,
     eggsSold: 0,
     costEvents: [],
+    transactions: [],
     saleState: 'idle',
     pendingSaleIncome: 0,
     pendingSaleEggs: 0,
@@ -48,26 +43,12 @@ function baseState(overrides: Partial<FarmState> = {}): FarmState {
     levelComplete: false,
     levelFailed: false,
     stars: 0,
+    finalScore: null,
+    scoreBreakdown: null,
     notification: null,
     ...overrides,
   }
 }
-
-describe('computeStars', () => {
-  it('should_award3Stars_when_under60Seconds', () => {
-    expect(computeStars(45)).toBe(3)
-    expect(computeStars(60)).toBe(3)
-  })
-
-  it('should_award2Stars_when_between61And120Seconds', () => {
-    expect(computeStars(61)).toBe(2)
-    expect(computeStars(120)).toBe(2)
-  })
-
-  it('should_award1Star_when_over120Seconds', () => {
-    expect(computeStars(121)).toBe(1)
-  })
-})
 
 describe('advanceFarm', () => {
   it('should_accrueCif_when_running', () => {
@@ -401,5 +382,44 @@ describe('useFarmStore actions', () => {
     useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice - 1 })
     useFarmStore.getState().buyChicken()
     expect(useFarmStore.getState().chickens).toHaveLength(1)
+  })
+
+  it('should_logTransaction_when_rechargeCorn', () => {
+    useFarmStore.getState().rechargeCorn()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({
+      label: 'Compra maíz',
+      amount: -(FARM_LEVEL1.cornUnitCost * FARM_LEVEL1.cornPerRecharge),
+    })
+  })
+
+  it('should_logTransaction_when_buyChicken', () => {
+    useFarmStore.setState({ cash: FARM_LEVEL1.chickenBuyPrice * 2 })
+    useFarmStore.getState().buyChicken()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({
+      label: 'Compra gallina',
+      amount: -FARM_LEVEL1.chickenBuyPrice,
+    })
+  })
+
+  it('should_logTransaction_when_completeSale', () => {
+    useFarmStore.setState({ saleState: 'in-transit', pendingSaleIncome: 400 })
+    useFarmStore.getState().completeSale()
+    const { transactions } = useFarmStore.getState()
+    expect(transactions).toHaveLength(1)
+    expect(transactions[0]).toMatchObject({ label: 'Venta de huevos', amount: 400 })
+  })
+
+  it('should_capTransactionLog_at50Entries', () => {
+    useFarmStore.setState({ cash: 1_000_000 })
+    // rechargeCorn() only buys when cornStock is 0 — reset it each time so every call logs.
+    for (let i = 0; i < 60; i++) {
+      useFarmStore.setState({ cornStock: 0 })
+      useFarmStore.getState().rechargeCorn()
+    }
+    expect(useFarmStore.getState().transactions).toHaveLength(50)
   })
 })

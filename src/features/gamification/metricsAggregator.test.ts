@@ -33,10 +33,7 @@ describe('aggregate', () => {
   })
 
   it('computes avgScore as arithmetic mean', () => {
-    const result = aggregate([
-      makeSession({ finalScore: 0.7 }),
-      makeSession({ finalScore: 0.9 }),
-    ])
+    const result = aggregate([makeSession({ finalScore: 0.7 }), makeSession({ finalScore: 0.9 })])
     expect(result.avgScore).toBeCloseTo(0.8)
   })
 
@@ -58,10 +55,7 @@ describe('aggregate', () => {
   })
 
   it('bestScore returns the maximum score', () => {
-    const result = aggregate([
-      makeSession({ finalScore: 0.7 }),
-      makeSession({ finalScore: 1.0 }),
-    ])
+    const result = aggregate([makeSession({ finalScore: 0.7 }), makeSession({ finalScore: 1.0 })])
     expect(result.bestScore).toBe(1.0)
   })
 

@@ -311,8 +311,8 @@ export function LevelHUD() {
         </div>
       </div>
 
-      {/* Bottom-left — menu button */}
-      <div className="pointer-events-auto absolute bottom-3 left-3">
+      {/* Bottom-left — menu + transactions buttons */}
+      <div className="pointer-events-auto absolute bottom-3 left-3 flex items-center gap-2">
         <button
           onClick={() => {
             playSfx('btn_click')
@@ -327,6 +327,22 @@ export function LevelHUD() {
           }}
         >
           Menú
+        </button>
+        <button
+          onClick={() => {
+            playSfx('btn_click')
+            setTimeout(() => setFarmDialog('transactions'), 150)
+          }}
+          aria-label="Ver transacciones"
+          className="rounded-xl font-bold transition-transform duration-75 active:scale-95"
+          style={{
+            ...PANEL_STYLE,
+            ...TEXT_MAIN,
+            fontSize: s.menuFont,
+            padding: `${s.menuPadY}px ${s.menuPadX}px`,
+          }}
+        >
+          📜
         </button>
       </div>
 

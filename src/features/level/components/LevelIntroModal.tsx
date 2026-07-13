@@ -39,6 +39,11 @@ const LEVEL_CONTENT = {
       '🥚 Haz clic en cada huevo para que el granjero lo recoja.',
       '💰 Vende los huevos en el almacén de productos.',
     ],
+    rules: [
+      `🌽 Maíz: $${FARM_LEVEL1.cornUnitCost}/unidad (recarga de ${FARM_LEVEL1.cornPerRecharge})`,
+      `🐔 Gallina: $${FARM_LEVEL1.chickenBuyPrice}/unidad`,
+      `🥚 Venta de huevo: $${FARM_LEVEL1.eggSellPrice}/unidad`,
+    ],
     starHint: `⭐⭐⭐ menos de 1 min · ⭐⭐ menos de 2 min`,
   },
   2: {
@@ -60,11 +65,24 @@ const LEVEL_CONTENT = {
       '🐔 Compra gallinas con el dinero de las ventas.',
       '💰 Los dos objetivos deben cumplirse al mismo tiempo.',
     ],
+    rules: [
+      `🌽 Maíz: $${FARM_LEVEL2.cornUnitCost}/unidad (recarga de ${FARM_LEVEL2.cornPerRecharge})`,
+      `🐔 Gallina: $${FARM_LEVEL2.chickenBuyPrice}/unidad`,
+      `🥚 Venta de huevo: $${FARM_LEVEL2.eggSellPrice}/unidad`,
+    ],
     starHint: `⭐⭐⭐ menos de 3 min · ⭐⭐ menos de 4 min`,
   },
 } as const
 
-export function LevelIntroModal() {
+const SCORING_NOTE =
+  'Tu puntaje final combina qué tanto cumples las metas, la exactitud de tus cálculos contables, tu tiempo y tu costo unitario por huevo.'
+
+interface LevelIntroModalProps {
+  /** EV-01: hides gameplay tips (the "how to play" hints), keeps rules/objectives visible. */
+  evalMode?: boolean
+}
+
+export function LevelIntroModal({ evalMode = false }: LevelIntroModalProps) {
   const farmDialog = useUiStore((s) => s.farmDialog)
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const activeLevelId = useFarmStore((s) => s.activeLevelId)
@@ -151,23 +169,55 @@ export function LevelIntroModal() {
           ))}
         </div>
 
-        {/* Tips */}
+        {/* Tips — hidden in evaluation mode (EV-01: "sin ayudas") */}
+        {!evalMode && (
+          <div
+            style={{
+              margin: `${p(12)}px ${p(24)}px ${p(8)}px`,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: `${p(6)}px`,
+            }}
+          >
+            {content.tips.map((tip) => (
+              <p
+                key={tip}
+                style={{ ...TEXT_MAIN, fontSize: `${p(12, 13)}px`, margin: 0, opacity: 0.85 }}
+              >
+                {tip}
+              </p>
+            ))}
+          </div>
+        )}
+
+        {/* Rules — prices and scoring, always visible (P-04) */}
         <div
           style={{
-            margin: `${p(12)}px ${p(24)}px ${p(8)}px`,
+            margin: `${p(evalMode ? 16 : 4)}px ${p(24)}px ${p(8)}px`,
+            padding: `${p(10)}px ${p(14)}px`,
+            background: 'rgba(0,0,0,0.25)',
+            borderRadius: '10px',
+            border: '1px solid rgba(255,224,102,0.15)',
             display: 'flex',
             flexDirection: 'column',
-            gap: `${p(6)}px`,
+            gap: `${p(4)}px`,
           }}
         >
-          {content.tips.map((tip) => (
-            <p
-              key={tip}
-              style={{ ...TEXT_MAIN, fontSize: `${p(12, 13)}px`, margin: 0, opacity: 0.85 }}
-            >
-              {tip}
+          {content.rules.map((rule) => (
+            <p key={rule} style={{ ...TEXT_MAIN, fontSize: `${p(11, 12)}px`, margin: 0 }}>
+              {rule}
             </p>
           ))}
+          <p
+            style={{
+              ...TEXT_LABEL,
+              fontSize: `${p(10, 11)}px`,
+              margin: `${p(4)}px 0 0`,
+              opacity: 0.8,
+            }}
+          >
+            {SCORING_NOTE}
+          </p>
           <p
             style={{
               ...TEXT_LABEL,

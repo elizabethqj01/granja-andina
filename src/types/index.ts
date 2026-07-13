@@ -1,3 +1,5 @@
+import type { Timestamp } from 'firebase/firestore'
+
 // ─── Inventory ───────────────────────────────────────────────────────────────
 
 export type InventoryCategory = 'MP' | 'WIP' | 'PT'
@@ -209,9 +211,148 @@ export interface GameSession {
   userId: string
   level: GameLevel
   status: SessionStatus
-  startedAt: number
-  completedAt: number | null
+  startedAt: Timestamp
+  completedAt: Timestamp | null
   finalScore: number | null
   finalProfit: number | null
   decisionCount: number
+}
+
+// ─── User (Firestore users/{uid}) ─────────────────────────────────────────────
+
+export type UserRole = 'estudiante' | 'profesor'
+
+export interface UserBestRecords {
+  bestTimeByLevel: Record<string, number>
+  bestCostUnitarioByLevel: Record<string, number>
+  bestUtilidadByLevel: Record<string, number>
+  // Not in the original especificaciones.md §1.2 schema, but required to keep
+  // totalScore/starsTotal (each "SUMA de la mejor marca por nivel") correct
+  // when a level's best attempt is overwritten by an even better one.
+  bestScoreByLevel: Record<string, number>
+  bestStarsByLevel: Record<string, number>
+}
+
+export interface AppUser {
+  uid: string
+  email: string
+  displayName: string
+  photoURL: string
+  role: UserRole
+  groupId: string | null
+  groupChangedAt: Timestamp | null
+  totalScore: number
+  starsTotal: number
+  levelsCompleted: number
+  bestRecords: UserBestRecords
+  createdAt: Timestamp
+  lastLoginAt: Timestamp
+}
+
+// ─── Groups / Scores / Ranking ─────────────────────────────────────────────────
+
+export interface Group {
+  codigo: string
+  nombre: string
+  profesorUid: string
+  activo: boolean
+  createdAt: Timestamp
+}
+
+export interface ScoreEntry {
+  uid: string
+  displayName: string
+  levelId: GameLevel
+  score: number
+  stars: LevelStars
+  timeSeconds: number
+  costoUnitario: number
+  utilidad: number
+  groupId: string | null
+  createdAt: Timestamp
+}
+
+export interface RankingEntry {
+  uid: string
+  displayName: string
+  photoURL: string
+  totalScore: number
+  starsTotal: number
+}
+
+// Computed live from direct Firestore queries (subscribeToRecords) — no
+// Cloud Function involved, so there's no single "last aggregated at" moment.
+export interface GlobalRecords {
+  menorCostoUnitario: { uid: string; displayName: string; value: number } | null
+  tiempoMasRapido: { uid: string; displayName: string; value: number } | null
+  mayorUtilidad: { uid: string; displayName: string; value: number } | null
+}
+
+// ─── Evaluation mode (EV-01 / EV-02) ───────────────────────────────────────────
+
+export interface ScoreBreakdown {
+  metas: number
+  correctitud: number
+  tiempo: number
+  costoUnitario: number
+}
+
+export interface Assessment {
+  userId: string
+  levelId: GameLevel
+  nota: number // 0.0–5.0, escala colombiana (score / 20)
+  breakdown: ScoreBreakdown
+  timeSeconds: number
+  completedAt: Timestamp
+}
+
+// ─── Farm cost/transaction events (owned here, re-exported by farmStore.ts to
+// avoid a circular import — farmStore already imports LevelStars/ScoreBreakdown
+// from this file) ───────────────────────────────────────────────────────────
+
+export type CostEventType = 'mod' | 'chicken' | 'corn_placed' | 'egg_collected'
+
+export interface CostEvent {
+  id: string
+  atSec: number
+  type: CostEventType
+  detail: string
+  amount: number
+}
+
+// P-05B — general live transaction log (corn/chicken purchases, egg sales).
+// Purely observational: pushed alongside the fields each action already sets,
+// never read by any gameplay logic, so it can't affect the tested mechanics.
+export interface Transaction {
+  id: string
+  atSec: number
+  label: string
+  amount: number
+}
+
+// ─── Level review — "último intento" snapshot (Fase 4, repaso) ────────────────
+
+export type LevelOutcome = 'completed' | 'failed'
+
+export interface LevelSnapshot {
+  uid: string
+  levelId: GameLevel
+  outcome: LevelOutcome
+  elapsedSec: number
+  cornPurchasedValue: number
+  cornStock: number
+  modAccrued: number
+  cifAccrued: number
+  chickenCostAccrued: number
+  warehouseEggs: number
+  groundEggsCount: number
+  eggsCollectedTotal: number
+  revenue: number
+  eggsSold: number
+  cash: number
+  stars: LevelStars
+  finalScore: number | null
+  transactions: Transaction[]
+  costEvents: CostEvent[]
+  completedAt: Timestamp
 }

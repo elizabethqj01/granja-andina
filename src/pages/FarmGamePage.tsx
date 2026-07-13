@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import type { LevelId } from '@/constants/farmBalance'
 import { FarmGameCanvas } from '@/game/FarmGameCanvas'
 import { LevelHUD } from '@/features/level/components/LevelHUD'
@@ -10,9 +10,23 @@ import { CostFlowDialog } from '@/features/level/components/CostFlowDialog'
 import { LevelIntroModal } from '@/features/level/components/LevelIntroModal'
 import { SellModal } from '@/features/level/components/SellModal'
 import { CostScrollModal } from '@/features/level/components/CostScrollModal'
+import { TransactionsPanel } from '@/features/level/components/TransactionsPanel'
+import { EvaluationRubricModal } from '@/features/education/components/EvaluationRubricModal'
 import { TutorialOverlay } from '@/features/education/TutorialOverlay'
 import { farmEngine } from '@/simulation/farm/farmEngine'
 import { useUiStore } from '@/store/uiStore'
+import { useAuthStore } from '@/store/authStore'
+import { useFarmStore, type FarmState } from '@/store/farmStore'
+import {
+  createSession,
+  completeSession,
+  writeScore,
+  updateBestRecords,
+  writeAssessment,
+  writeLevelSnapshot,
+} from '@/firebase/firestore'
+import type { LevelOutcome } from '@/types'
+import { computeFarmCostStatement } from '@/features/level/farmCostStatement'
 
 /**
  * Level 1 game screen — Farm pivot. Owns the farm engine lifecycle and lays the
@@ -21,38 +35,174 @@ import { useUiStore } from '@/store/uiStore'
 export function FarmGamePage() {
   const navigate = useNavigate()
   const { level } = useParams<{ level: string }>()
+  const [searchParams] = useSearchParams()
+  const evalMode = searchParams.get('eval') === '1'
   const levelId = (Number(level) === 2 ? 2 : 1) as LevelId
   const setFarmDialog = useUiStore((s) => s.setFarmDialog)
   const farmDialog = useUiStore((s) => s.farmDialog)
   const startFarmTutorial = useUiStore((s) => s.startFarmTutorial)
   const prevDialogRef = useRef<string | null>(null)
 
+  const uid = useAuthStore((s) => s.user?.uid ?? null)
+  const appUser = useAuthStore((s) => s.appUser)
+  const setAppUser = useAuthStore((s) => s.setAppUser)
+  const levelComplete = useFarmStore((s) => s.levelComplete)
+  const levelFailed = useFarmStore((s) => s.levelFailed)
+  const finalScore = useFarmStore((s) => s.finalScore)
+  const scoreBreakdown = useFarmStore((s) => s.scoreBreakdown)
+  const sessionIdRef = useRef<string | null>(null)
+  const sessionOpenRef = useRef(false)
+
+  function beginSession() {
+    sessionOpenRef.current = false
+    if (!uid) return
+    createSession(uid, levelId).then((id) => {
+      sessionIdRef.current = id
+      sessionOpenRef.current = true
+    })
+  }
+
+  async function persistScoreIfNewBest(farm: FarmState) {
+    if (farm.finalScore === null || !uid || !appUser) return
+    const key = String(levelId)
+    const previousBest = appUser.bestRecords.bestScoreByLevel[key] ?? -1
+    if (farm.finalScore <= previousBest) return
+
+    const statement = computeFarmCostStatement({
+      cornPurchasedValue: farm.cornPurchasedValue,
+      cornStock: farm.cornStock,
+      modAccrued: farm.modAccrued,
+      cifAccrued: farm.cifAccrued,
+      chickenCostAccrued: farm.chickenCostAccrued,
+      warehouseEggs: farm.warehouseEggs,
+      groundEggsCount: farm.groundEggs.length,
+      eggsCollectedTotal: farm.eggsCollectedTotal,
+      revenue: farm.revenue,
+    })
+    const record = {
+      score: farm.finalScore,
+      stars: farm.stars,
+      timeSeconds: farm.elapsedSec,
+      costoUnitario: statement.costPerEgg,
+      utilidad: statement.utilidad,
+    }
+
+    await writeScore(uid, appUser.displayName, levelId, appUser.groupId, record)
+    await updateBestRecords(uid, levelId, appUser, record)
+
+    const prevStars = appUser.bestRecords.bestStarsByLevel[key] ?? 0
+    setAppUser({
+      ...appUser,
+      totalScore: appUser.totalScore - Math.max(previousBest, 0) + record.score,
+      starsTotal: appUser.starsTotal - prevStars + record.stars,
+      levelsCompleted:
+        appUser.levelsCompleted + (key in appUser.bestRecords.bestScoreByLevel ? 0 : 1),
+      bestRecords: {
+        ...appUser.bestRecords,
+        bestScoreByLevel: { ...appUser.bestRecords.bestScoreByLevel, [key]: record.score },
+        bestStarsByLevel: { ...appUser.bestRecords.bestStarsByLevel, [key]: record.stars },
+        bestTimeByLevel: { ...appUser.bestRecords.bestTimeByLevel, [key]: record.timeSeconds },
+        bestCostUnitarioByLevel: {
+          ...appUser.bestRecords.bestCostUnitarioByLevel,
+          [key]: record.costoUnitario,
+        },
+        bestUtilidadByLevel: { ...appUser.bestRecords.bestUtilidadByLevel, [key]: record.utilidad },
+      },
+    })
+  }
+
+  // "Último intento" — overwritten every time a level ends (win or lose),
+  // regardless of whether it beat the previous best. Powers "repasar flujo de
+  // costos" from the level map. Not called from a manual mid-game exit
+  // (handleExit) since that has no meaningful final numbers to review.
+  function persistLevelSnapshot(farm: FarmState, outcome: LevelOutcome) {
+    if (!uid) return
+    void writeLevelSnapshot(uid, levelId, outcome, {
+      elapsedSec: farm.elapsedSec,
+      cornPurchasedValue: farm.cornPurchasedValue,
+      cornStock: farm.cornStock,
+      modAccrued: farm.modAccrued,
+      cifAccrued: farm.cifAccrued,
+      chickenCostAccrued: farm.chickenCostAccrued,
+      warehouseEggs: farm.warehouseEggs,
+      groundEggsCount: farm.groundEggs.length,
+      eggsCollectedTotal: farm.eggsCollectedTotal,
+      revenue: farm.revenue,
+      eggsSold: farm.eggsSold,
+      cash: farm.cash,
+      stars: farm.stars,
+      finalScore: farm.finalScore,
+      transactions: farm.transactions,
+      costEvents: farm.costEvents,
+    })
+  }
+
+  function closeSession(status: 'completed' | 'abandoned') {
+    if (!sessionOpenRef.current || !sessionIdRef.current) return
+    sessionOpenRef.current = false
+    const farm = useFarmStore.getState()
+    void completeSession(sessionIdRef.current, {
+      status,
+      finalScore: farm.finalScore,
+      finalProfit: farm.cash,
+      decisionCount: farm.eggsSold,
+    })
+    if (status !== 'completed') return
+    if (evalMode) {
+      if (uid && farm.finalScore !== null && farm.scoreBreakdown) {
+        void writeAssessment(
+          uid,
+          levelId,
+          farm.finalScore / 20,
+          farm.scoreBreakdown,
+          farm.elapsedSec
+        )
+      }
+      return
+    }
+    void persistScoreIfNewBest(farm)
+  }
+
   useEffect(() => {
     // Start fresh and pause on the objectives intro until the player begins.
     farmEngine.reset(levelId)
     farmEngine.start()
     setFarmDialog('objectives')
+    beginSession()
     return () => {
       farmEngine.stop()
       setFarmDialog(null)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once per level mount, mirrors farmEngine.reset(levelId) above
   }, [setFarmDialog])
 
-  // Start tutorial the moment the player closes the intro modal
+  // Start tutorial the moment the player closes the intro modal — skipped in
+  // evaluation mode (EV-01: "sin ayudas"), the rest of the engine lifecycle is unchanged.
   useEffect(() => {
-    if (prevDialogRef.current === 'objectives' && farmDialog === null) {
+    if (prevDialogRef.current === 'objectives' && farmDialog === null && !evalMode) {
       startFarmTutorial()
     }
     prevDialogRef.current = farmDialog
-  }, [farmDialog, startFarmTutorial])
+  }, [farmDialog, startFarmTutorial, evalMode])
+
+  // Persist the session's final stats the moment the level resolves.
+  useEffect(() => {
+    if (levelComplete || levelFailed) {
+      closeSession(levelComplete ? 'completed' : 'abandoned')
+      persistLevelSnapshot(useFarmStore.getState(), levelComplete ? 'completed' : 'failed')
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- closeSession/persistLevelSnapshot read fresh state via useFarmStore.getState()
+  }, [levelComplete, levelFailed])
 
   function handleRestart() {
     farmEngine.reset(levelId)
     farmEngine.start()
     setFarmDialog('objectives')
+    beginSession()
   }
 
   function handleExit() {
+    closeSession('abandoned')
     farmEngine.stop()
     navigate('/levels')
   }
@@ -80,17 +230,30 @@ export function FarmGamePage() {
         Almacén
       </div>
       <LevelHUD />
-      <TutorialOverlay />
-      <LevelIntroModal />
+      {!evalMode && <TutorialOverlay />}
+      <LevelIntroModal evalMode={evalMode} />
       <SellModal />
       <CostScrollModal />
       <CostFlowDialog />
+      <TransactionsPanel />
       <InGameMenu
         onResume={() => setFarmDialog(null)}
         onRestart={handleRestart}
         onExit={handleExit}
       />
-      <LevelCompleteModal onRetry={handleRestart} onExit={handleExit} />
+      {evalMode ? (
+        levelComplete &&
+        finalScore !== null &&
+        scoreBreakdown && (
+          <EvaluationRubricModal
+            nota={finalScore / 20}
+            breakdown={scoreBreakdown}
+            onContinue={() => navigate('/levels')}
+          />
+        )
+      ) : (
+        <LevelCompleteModal onRetry={handleRestart} onExit={handleExit} />
+      )}
       <GameOverModal onRetry={handleRestart} onExit={handleExit} />
     </div>
   )
